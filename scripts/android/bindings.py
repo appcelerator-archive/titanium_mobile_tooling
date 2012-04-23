@@ -2,20 +2,28 @@
 import os, sys
 import zipfile
 
-android_dir = os.path.dirname(sys._getframe(0).f_code.co_filename)
-common_dir = os.path.abspath(os.path.join(android_dir, "..", "common"))
+this_dir = os.path.dirname(__file__)
+common_dir = os.path.join(os.path.dirname(this_dir), "common")
 sys.path.append(common_dir)
+thirdparty_dir = os.path.join(os.path.dirname(os.path.dirname(this_dir)), "thirdparty")
 
 try:
 	import simplejson as json
 except ImportError, e:
 	import json
 
-android_modules_dir = os.path.abspath(os.path.join(android_dir, 'modules'))
-modules_json = os.path.join(android_dir, 'modules.json')
+android_modules_dir = None
+modules_json = None
 module_jars = None
-if os.path.exists(modules_json):
-	module_jars = json.loads(open(modules_json, 'r').read())
+
+
+def init(ti_android_dir):
+	global android_dir, android_modules_dir, modules_json, module_jars
+	android_dir = ti_android_dir
+	android_modules_dir = os.path.abspath(os.path.join(android_dir, 'modules'))
+	modules_json = os.path.join(android_dir, 'modules.json')
+	if os.path.exists(modules_json):
+		module_jars = json.loads(open(modules_json, 'r').read())
 
 def get_module_bindings(jar):
 	bindings_path = None

@@ -17,8 +17,10 @@ import bindings
 ignoreFiles = ['.gitignore', '.cvsignore', '.DS_Store']
 ignoreDirs = ['.git','.svn','_svn', 'CVS']
 ignoreSymbols = ['version','userAgent','name','_JSON','include','fireEvent','addEventListener','removeEventListener','buildhash','builddate']
-template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
-sys.path.append(os.path.abspath(os.path.join(template_dir, "..", "common")))
+this_dir = os.path.dirname(__file__)
+scripts_root = os.path.dirname(this_dir)
+tools_root = os.path.dirname(scripts_root)
+sys.path.append(os.path.join(tools_root, "thirdparty"))
 
 import simplejson
 
@@ -35,13 +37,15 @@ class ScriptProcessor(SGMLParser):
 					self.scripts.append(attr[1])
 
 class Compiler(object):
-	def __init__(self, tiapp, project_dir, java, classes_dir, gen_dir, root_dir, include_all_modules=False):
+	def __init__(self, tiapp, project_dir, java, classes_dir, gen_dir, root_dir, include_all_modules=False, ti_sdk_dir=None):
+		self.ti_sdk_dir = ti_sdk_dir
+		self.ti_android_dir = None
 		self.tiapp = tiapp
 		self.java = java
 		self.appname = tiapp.properties['name']
 		self.classes_dir = classes_dir
 		self.gen_dir = gen_dir
-		self.template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
+		self.this_dir = this_dir
 		self.appid = tiapp.properties['id']
 		self.root_dir = root_dir
 		self.use_bytecode = False
@@ -49,17 +53,20 @@ class Compiler(object):
 		self.modules = set()
 		self.jar_libraries = set()
 		
-		json_contents = open(os.path.join(self.template_dir,'dependency.json')).read()
+		json_contents = open(os.path.join(self.ti_sdk_dir, 'android', 'dependency.json')).read()
 		self.depends_map = simplejson.loads(json_contents)
+
+		if self.ti_sdk_dir:
+			self.ti_android_dir = os.path.join(self.ti_sdk_dir, "android")
+			bindings.init(self.ti_android_dir)
 		
 		# go ahead and slurp in any required modules
 		for required in self.depends_map['required']:
 			self.add_required_module(required)
 
-		# TODO switch default runtime to Rhino
 		runtime = tiapp.app_properties.get('ti.android.runtime', self.depends_map['runtimes']['defaultRuntime'])
 		for runtime_jar in self.depends_map['runtimes'][runtime]:
-			self.jar_libraries.add(os.path.join(template_dir, runtime_jar))
+			self.jar_libraries.add(os.path.join(self.ti_android_dir, runtime_jar))
 
 		if (tiapp.has_app_property('ti.android.include_all_modules')):
 			if tiapp.to_bool(tiapp.get_app_property('ti.android.include_all_modules')):
@@ -89,7 +96,7 @@ class Compiler(object):
 				
 			if self.depends_map['libraries'].has_key(name):
 				for lib in self.depends_map['libraries'][name]:
-					lf = os.path.join(self.template_dir,lib)
+					lf = os.path.join(self.ti_android_dir,lib)
 					if os.path.exists(lf):
 						if not lf in self.jar_libraries:
 							print "[DEBUG] adding required library: %s" % lib
@@ -144,7 +151,7 @@ class Compiler(object):
 			self.extract_and_combine_modules('Ti',line)
 
 	def compile_javascript(self, fullpath):
-		js_jar = os.path.join(self.template_dir, 'js.jar')
+		js_jar = os.path.join(self.ti_android_dir, 'js.jar')
 		# poor man's os.path.relpath (we don't have python 2.6 in windows)
 		resource_relative_path = fullpath[len(self.project_dir)+1:].replace("\\", "/")
 
@@ -160,7 +167,7 @@ class Compiler(object):
 				'-nosource', '-package', self.appid + '.js', '-encoding', 'utf8',
 				'-o', js_class_name, '-d', self.classes_dir, fullpath]
 		else:
-			jsc_args = [self.java, '-jar', os.path.join(self.template_dir, 'lib/closure-compiler.jar'),
+			jsc_args = [self.java, '-jar', os.path.join(this_dir, "lib", "closure-compiler.jar"),
 				'--js', fullpath, '--js_output_file', fullpath + '-compiled', '--jscomp_off=internetExplorerChecks']
 
 		print "[INFO] Compiling javascript: %s" % resource_relative_path

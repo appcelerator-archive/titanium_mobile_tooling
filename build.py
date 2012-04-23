@@ -50,6 +50,7 @@ def package(desktop_os):
 			if d in dirs:
 				dirs.remove(d)
 		for f in files:
+			full_path = os.path.join(root, f)
 			if f in IGNORE_FILES:
 				continue
 			if os.path.abspath(os.path.join(root, f)) == os.path.abspath(__file__):
@@ -61,7 +62,6 @@ def package(desktop_os):
 					break
 			if skip:
 				continue
-			full_path = os.path.join(root, f)
 			rel_path = full_path.replace(this_dir, "")
 			if rel_path.startswith(os.sep):
 				rel_path = rel_path[1:]

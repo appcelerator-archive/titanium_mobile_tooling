@@ -10,7 +10,7 @@
 # and debugging Titanium Mobile applications on Android
 #
 import os, sys, subprocess, shutil, time, signal, string, platform, re, glob, hashlib, imp, inspect
-import run, avd, prereq, zipfile, tempfile, fnmatch, codecs, traceback
+import run, avd, prereq, zipfile, tempfile, fnmatch, codecs, traceback, optparse
 from os.path import splitext
 from compiler import Compiler
 from os.path import join, splitext, split, exists
@@ -19,12 +19,15 @@ from xml.dom.minidom import parseString
 from tilogger import *
 from datetime import datetime, timedelta
 
-template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
-top_support_dir = os.path.dirname(template_dir) 
-sys.path.append(top_support_dir)
-sys.path.append(os.path.join(top_support_dir, 'common'))
-sys.path.append(os.path.join(top_support_dir, 'module'))
+this_dir = os.path.dirname(__file__)
+top_scripts_dir = os.path.dirname(this_dir) 
+tools_root_dir = os.path.join(os.path.dirname(top_scripts_dir), "thirdparty")
+sys.path.append(tools_root_dir)
+sys.path.append(top_scripts_dir)
+sys.path.append(os.path.join(top_scripts_dir, 'common'))
+sys.path.append(os.path.join(top_scripts_dir, 'module'))
 
+import timobile
 import simplejson
 from mako.template import Template
 from tiapp import *
@@ -42,6 +45,8 @@ ignoreDirs = ['.git','.svn','_svn', 'CVS'];
 android_avd_hw = {'hw.camera': 'yes', 'hw.gps':'yes'}
 res_skips = ['style']
 log = None
+sys_argv = [] # replacement for using sys_argv after introducing optparse in this script.
+titanium_mobile_dir = None # set later
 
 # Copied from frameworks/base/tools/aapt/Package.cpp
 uncompressed_types = [
@@ -234,7 +239,7 @@ class Builder(object):
 		self.sdk = AndroidSDK(sdk, self.tool_api_level)
 		self.tiappxml = temp_tiapp
 
-		json_contents = open(os.path.join(template_dir,'dependency.json')).read()
+		json_contents = open(os.path.join(titanium_mobile_dir,'android', 'dependency.json')).read()
 		self.depends_map = simplejson.loads(json_contents)
 		self.runtime = self.tiappxml.app_properties.get('ti.android.runtime', self.depends_map['runtimes']['defaultRuntime'])
 
@@ -242,7 +247,7 @@ class Builder(object):
 		# start in 1.4, you no longer need the build/android directory
 		# if missing, we'll create it on the fly
 		if not os.path.exists(self.project_dir) or not os.path.exists(os.path.join(self.project_dir,'AndroidManifest.xml')):
-			android_creator = Android(name, app_id, self.sdk, None, self.java)
+			android_creator = Android(name, app_id, self.sdk, None, self.java, titanium_mobile_dir)
 			parent_dir = os.path.dirname(self.top_dir)
 			if os.path.exists(self.top_dir):
 				android_creator.create(parent_dir, project_dir=self.top_dir, build_time=True)
@@ -400,7 +405,7 @@ class Builder(object):
 			run.run([self.sdk.get_mksdcard(), '64M', self.sdcard])
 		if not os.path.exists(my_avd):
 			info("Creating new Android Virtual Device (%s %s)" % (avd_id,avd_skin))
-			inputgen = os.path.join(template_dir,'input.py')
+			inputgen = os.path.join(this_dir,'input.py')
 			pipe([sys.executable, inputgen], [self.sdk.get_android(), '--verbose', 'create', 'avd', '--name', name, '--target', avd_id, '-s', avd_skin, '--force', '--sdcard', self.sdcard])
 			inifile = os.path.join(my_avd,'config.ini')
 			inifilec = open(inifile,'r').read()
@@ -1231,7 +1236,7 @@ class Builder(object):
 
 	def generate_localizations(self):
 		# compile localization files
-		localecompiler.LocaleCompiler(self.name,self.top_dir,'android',sys.argv[1]).compile()
+		localecompiler.LocaleCompiler(self.name,self.top_dir,'android',sys_argv[1]).compile()
 		# fix un-escaped single-quotes and full-quotes
 		offending_pattern = '[^\\\\][\'"]'
 		for root, dirs, files in os.walk(self.res_dir):
@@ -1461,7 +1466,7 @@ class Builder(object):
 
 			# add sdk runtime native libraries
 			debug("installing native SDK libs")
-			sdk_native_libs = os.path.join(template_dir, 'native', 'libs')
+			sdk_native_libs = os.path.join(titanium_mobile_dir, 'android', 'native', 'libs')
 			apk_zip.write(os.path.join(sdk_native_libs, 'armeabi', 'libkroll-v8.so'), 'lib/armeabi/libkroll-v8.so')
 			apk_zip.write(os.path.join(sdk_native_libs, 'armeabi', 'libstlport_shared.so'), 'lib/armeabi/libstlport_shared.so')
 			apk_zip.write(os.path.join(sdk_native_libs, 'armeabi-v7a', 'libkroll-v8.so'), 'lib/armeabi-v7a/libkroll-v8.so')
@@ -1678,7 +1683,7 @@ class Builder(object):
 
 		# attempt to load any compiler plugins
 		if len(self.tiappxml.properties['plugins']) > 0:
-			titanium_dir = os.path.abspath(os.path.join(template_dir,'..','..','..','..'))
+			titanium_dir = os.path.abspath(os.path.join(this_dir,'..','..','..','..'))
 			local_compiler_dir = os.path.abspath(os.path.join(self.top_dir,'plugins'))
 			tp_compiler_dir = os.path.abspath(os.path.join(titanium_dir,'plugins'))
 			if not os.path.exists(tp_compiler_dir) and not os.path.exists(local_compiler_dir):
@@ -1690,7 +1695,7 @@ class Builder(object):
 				'project_dir':self.top_dir,
 				'titanium_dir':titanium_dir,
 				'appid':self.app_id,
-				'template_dir':template_dir,
+				'this_dir':this_dir,
 				'project_name':self.name,
 				'command':self.command,
 				'build_dir':s.project_dir,
@@ -1759,7 +1764,7 @@ class Builder(object):
 		self.dist_dir = dist_dir
 		self.aapt = self.sdk.get_aapt()
 		self.android_jar = self.sdk.get_android_jar()
-		self.titanium_jar = os.path.join(self.support_dir,'titanium.jar')
+		self.titanium_jar = os.path.join(titanium_mobile_dir, 'android', 'titanium.jar')
 		self.kroll_apt_jar = os.path.join(self.support_dir, 'kroll-apt.jar')
 
 		dx = self.sdk.get_dx()
@@ -1787,7 +1792,7 @@ class Builder(object):
 		
 		try:
 			os.chdir(self.project_dir)
-			self.android = Android(self.name, self.app_id, self.sdk, deploy_type, self.java)
+			self.android = Android(self.name, self.app_id, self.sdk, deploy_type, self.java, titanium_mobile_dir)
 
 			if not os.path.exists('bin'):
 				os.makedirs('bin')
@@ -1833,7 +1838,7 @@ class Builder(object):
 			# Detect which modules are being used.
 			# We need to know this info in a few places, so the info is saved
 			# in self.missing_modules and self.modules
-			detector = ModuleDetector(self.top_dir)
+			detector = ModuleDetector(self.top_dir, titanium_mobile_dir)
 			self.missing_modules, self.modules = detector.find_app_modules(self.tiapp, 'android')
 
 			self.copy_commonjs_modules()
@@ -1879,7 +1884,8 @@ class Builder(object):
 								self.classes_dir,
 								self.project_gen_dir,
 								self.project_dir, 
-								include_all_modules=include_all_ti_modules)
+								include_all_modules=include_all_ti_modules,
+								ti_sdk_dir = titanium_mobile_dir)
 			compiler.compile(compile_bytecode=self.compile_js)
 			self.compiled_files = compiler.compiled_files
 			self.android_jars = compiler.jar_libraries
@@ -1955,7 +1961,7 @@ class Builder(object):
 							has_network_jar = True
 							break
 					if not has_network_jar:
-						dex_args.append(os.path.join(self.support_dir, 'modules', 'titanium-network.jar'))
+						dex_args.append(os.path.join(titanium_mobile_dir, 'android', 'modules', 'titanium-network.jar'))
 
 				info("Compiling Android Resources... This could take some time")
 				# TODO - Document Exit message
@@ -2028,10 +2034,9 @@ class Builder(object):
 		except Exception,e:
 			error("Error performing post-build steps: %s" % e)
 
-
 if __name__ == "__main__":
 	def usage():
-		print "%s <command> <project_name> <sdk_dir> <project_dir> <app_id> [key] [password] [alias] [dir] [avdid] [avdsdk] [emulator options]" % os.path.basename(sys.argv[0])
+		print "%s <command> <project_name> <sdk_dir> <project_dir> <app_id> [key] [password] [alias] [dir] [avdid] [avdsdk] [emulator options]" % os.path.basename(sys_argv[0])
 		print
 		print "available commands: "
 		print
@@ -2043,33 +2048,53 @@ if __name__ == "__main__":
 		print "  run-emulator  run the emulator with a default AVD ID and skin"
 		
 		sys.exit(1)
+	
+	parser = optparse.OptionParser()
+	parser.add_option("-t", "--titanium-mobile-version",
+			dest="mobile_version",
+			default=None,
+			help="Version of Titanium Mobile to compile the project against. Must match one of the version directories below the Titanium/mobilesdk/[os] directory. Defaults to latest installed version."
+			)
+	(options, sys_argv) = parser.parse_args()
+	# To mimic sys.argv, put the script name in position 0 of sys_argv
+	sys_argv.insert(0, __file__)
 
-	argc = len(sys.argv)
+	argc = len(sys_argv)
 	if argc < 2:
 		usage()
 
-	command = sys.argv[1]
-	template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
+	titanium_mobile_root = timobile.find_mobilesdk_from_mobiletools(this_dir)
+	if options.mobile_version:
+		(version, version_dir) = timobile.find_mobilesdk_version(titanium_mobile_root, options.mobile_version)
+	else:
+		(version, version_dir) = timobile.find_latest_mobilesdk(titanium_mobile_root)
+	if not version_dir:
+		error("Cannot locate Titanium Mobile SDK directory")
+		sys.exit(1)
+	titanium_mobile_dir = version_dir
+
+	command = sys_argv[1]
+	this_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
 	get_values_from_tiapp = False
 
 	if command == 'run':
 		if argc < 4:
-			print 'Usage: %s run <project_dir> <android_sdk>' % sys.argv[0]
+			print 'Usage: %s run <project_dir> <android_sdk>' % sys_argv[0]
 			sys.exit(1)
 		
 		get_values_from_tiapp = True
-		project_dir = sys.argv[2]
-		sdk_dir = sys.argv[3]
+		project_dir = sys_argv[2]
+		sdk_dir = sys_argv[3]
 		
 		avd_id = "7"
 	elif command == 'run-emulator':
 		if argc < 4:
-			print 'Usage: %s run-emulator <project_dir> <android_sdk>' % sys.argv[0]
+			print 'Usage: %s run-emulator <project_dir> <android_sdk>' % sys_argv[0]
 			sys.exit(1)
 
 		get_values_from_tiapp = True
-		project_dir = sys.argv[2]
-		sdk_dir = sys.argv[3]
+		project_dir = sys_argv[2]
+		sdk_dir = sys_argv[3]
 		# sensible defaults?
 		avd_id = "7"
 		avd_skin = "HVGA"
@@ -2082,15 +2107,15 @@ if __name__ == "__main__":
 		app_id = tiappxml.properties['id']
 		project_name = tiappxml.properties['name']
 	else:
-		project_name = dequote(sys.argv[2])
-		sdk_dir = os.path.abspath(os.path.expanduser(dequote(sys.argv[3])))
-		project_dir = os.path.abspath(os.path.expanduser(dequote(sys.argv[4])))
-		app_id = dequote(sys.argv[5])
+		project_name = dequote(sys_argv[2])
+		sdk_dir = os.path.abspath(os.path.expanduser(dequote(sys_argv[3])))
+		project_dir = os.path.abspath(os.path.expanduser(dequote(sys_argv[4])))
+		app_id = dequote(sys_argv[5])
 
 	log = TiLogger(os.path.join(os.path.abspath(os.path.expanduser(dequote(project_dir))), 'build.log'))
-	log.debug(" ".join(sys.argv))
+	log.debug(" ".join(sys_argv))
 	
-	s = Builder(project_name,sdk_dir,project_dir,template_dir,app_id)
+	s = Builder(project_name,sdk_dir,project_dir,this_dir,app_id)
 	s.command = command
 
 	try:
@@ -2099,36 +2124,36 @@ if __name__ == "__main__":
 		elif command == 'run':
 			s.build_and_run(False, avd_id)
 		elif command == 'emulator':
-			avd_id = dequote(sys.argv[6])
+			avd_id = dequote(sys_argv[6])
 			if avd_id.isdigit():
 				avd_name = None
-				avd_skin = dequote(sys.argv[7])
-				add_args = sys.argv[8:]
+				avd_skin = dequote(sys_argv[7])
+				add_args = sys_argv[8:]
 			else:
-				avd_name = sys.argv[6]
+				avd_name = sys_argv[6]
 				avd_id = None
 				avd_skin = None
-				add_args = sys.argv[7:]
+				add_args = sys_argv[7:]
 			s.run_emulator(avd_id, avd_skin, avd_name, add_args)
 		elif command == 'simulator':
 			info("Building %s for Android ... one moment" % project_name)
-			avd_id = dequote(sys.argv[6])
+			avd_id = dequote(sys_argv[6])
 			debugger_host = None
-			if len(sys.argv) > 8:
-				debugger_host = dequote(sys.argv[8])
+			if len(sys_argv) > 8:
+				debugger_host = dequote(sys_argv[8])
 			s.build_and_run(False, avd_id, debugger_host=debugger_host)
 		elif command == 'install':
-			avd_id = dequote(sys.argv[6])
+			avd_id = dequote(sys_argv[6])
 			device_args = ['-d']
-			if len(sys.argv) >= 8:
-				device_args = ['-s', sys.argv[7]]
+			if len(sys_argv) >= 8:
+				device_args = ['-s', sys_argv[7]]
 			s.build_and_run(True, avd_id, device_args=device_args)
 		elif command == 'distribute':
-			key = os.path.abspath(os.path.expanduser(dequote(sys.argv[6])))
-			password = dequote(sys.argv[7])
-			alias = dequote(sys.argv[8])
-			output_dir = dequote(sys.argv[9])
-			avd_id = dequote(sys.argv[10])
+			key = os.path.abspath(os.path.expanduser(dequote(sys_argv[6])))
+			password = dequote(sys_argv[7])
+			alias = dequote(sys_argv[8])
+			output_dir = dequote(sys_argv[9])
+			avd_id = dequote(sys_argv[10])
 			s.build_and_run(True, avd_id, key, password, alias, output_dir)
 		elif command == 'build':
 			s.build_and_run(False, 1, build_only=True)

@@ -19,10 +19,13 @@ from androidsdk import AndroidSDK
 from compiler import Compiler
 import bindings
 
-template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
-module_dir = os.path.join(os.path.dirname(template_dir), 'module')
-common_dir = os.path.join(os.path.dirname(template_dir), 'common')
-sys.path.extend([os.path.dirname(template_dir), module_dir, common_dir])
+this_dir = os.path.dirname(__file__)
+module_dir = os.path.join(os.path.dirname(this_dir), 'module')
+common_dir = os.path.join(os.path.dirname(this_dir), 'common')
+scripts_root = os.path.dirname(this_dir)
+tools_root = os.path.dirname(scripts_root)
+baseapp_templates = os.path.join(tools_root, "templates", "baseapp")
+sys.path.extend([os.path.dirname(this_dir), module_dir, common_dir, os.path.join(tools_root, "thirdparty")])
 from mako.template import Template
 from tiapp import TiAppXML, touch_tiapp_xml
 from manifest import Manifest
@@ -60,14 +63,16 @@ def copy_resources(source, target):
 	
 class Android(object):
 
-	def __init__(self, name, myid, sdk, deploy_type, java):
+	def __init__(self, name, myid, android_sdk_dir, deploy_type, java, ti_sdk_dir):
 		self.name = name
 		# android requires at least one dot in packageid
 		if len(re.findall(r'\.',myid))==0:
 			myid = 'com.%s' % myid
 
 		self.id = myid
-		self.sdk = sdk
+		self.android_sdk_dir = android_sdk_dir
+		self.ti_sdk_dir = ti_sdk_dir
+		bindings.init(os.path.join(ti_sdk_dir, "android"))
 
 		# Used in templating
 		self.config = {
@@ -102,12 +107,12 @@ class Android(object):
 		return Template(filename=template, output_encoding='utf-8', encoding_errors='replace')
 
 	def render_android_manifest(self):
-		template_dir = os.path.dirname(sys._getframe(0).f_code.co_filename)
-		tmpl = self.load_template(os.path.join(template_dir, 'templates', 'AndroidManifest.xml'))
+		this_dir = os.path.dirname(sys._getframe(0).f_code.co_filename)
+		tmpl = self.load_template(os.path.join(baseapp_templates, 'android', 'native', 'AndroidManifest.xml'))
 		return tmpl.render(config = self.config)
 
-	def render(self, template_dir, template_file, dest, dest_file, **kwargs):
-		tmpl = self.load_template(os.path.join(template_dir, 'templates', template_file))
+	def render(self, this_dir, template_file, dest, dest_file, **kwargs):
+		tmpl = self.load_template(os.path.join(baseapp_templates, 'android', 'native', template_file))
 		f = None
 		try:
 			print "[TRACE] Generating %s" % os.path.join(dest, dest_file)
@@ -147,7 +152,7 @@ class Android(object):
 			activity = self.tiapp.android['activities'][key]
 			print '[DEBUG] generating activity class: ' + activity['classname']
 			
-			self.render(template_dir, 'JSActivity.java', app_package_dir, activity['classname']+'.java', activity=activity)
+			self.render(this_dir, 'JSActivity.java', app_package_dir, activity['classname']+'.java', activity=activity)
 	
 	def generate_services(self, app_package_dir):
 		if not 'services' in self.tiapp.android: return
@@ -156,9 +161,9 @@ class Android(object):
 			service_type = service['service_type']
 			print '[DEBUG] generating service type "%s", class "%s"' %(service_type, service['classname'])
 			if service_type == 'interval':
-				self.render(template_dir, 'JSIntervalService.java', app_package_dir, service['classname']+'.java', service=service)
+				self.render(this_dir, 'JSIntervalService.java', app_package_dir, service['classname']+'.java', service=service)
 			else:
-				self.render(template_dir, 'JSService.java', app_package_dir, service['classname']+'.java', service=service)
+				self.render(this_dir, 'JSService.java', app_package_dir, service['classname']+'.java', service=service)
 
 	def build_modules_info(self, resources_dir, app_bin_dir, include_all_ti_modules=False):
 		self.app_modules = []
@@ -166,7 +171,8 @@ class Android(object):
 		
 		compiler = Compiler(self.tiapp, resources_dir, self.java, app_bin_dir,
 				None, os.path.dirname(app_bin_dir),
-				include_all_modules=include_all_ti_modules)
+				include_all_modules=include_all_ti_modules,
+				ti_sdk_dir=self.ti_sdk_dir)
 		compiler.compile(compile_bytecode=False, info_message=None)
 		for module in compiler.modules:
 			module_bindings = []
@@ -201,7 +207,7 @@ class Android(object):
 			})
 		
 		# discover app modules
-		detector = ModuleDetector(self.project_dir)
+		detector = ModuleDetector(self.project_dir, self.ti_sdk_dir)
 		missing, detected_modules = detector.find_app_modules(self.tiapp, 'android')
 		for missing_module in missing: print '[WARN] Couldn\'t find app module: %s' % missing_module['id']
 		
@@ -249,7 +255,7 @@ class Android(object):
 
 		
 	def create(self, dir, build_time=False, project_dir=None, include_all_ti_modules=False):
-		template_dir = os.path.dirname(sys._getframe(0).f_code.co_filename)
+		this_dir = os.path.dirname(sys._getframe(0).f_code.co_filename)
 		
 		# Build up output directory tree
 		if project_dir is None:
@@ -262,7 +268,7 @@ class Android(object):
 		resource_dir = os.path.join(project_dir, 'Resources')
 		self.config['ti_resources_dir'] = resource_dir
 
-		json_contents = open(os.path.join(template_dir,'dependency.json')).read()
+		json_contents = open(os.path.join(self.ti_sdk_dir, 'android', 'dependency.json')).read()
 		depends_map = simplejson.loads(json_contents)
 		runtime = depends_map['runtimes']['defaultRuntime']
 		if self.tiapp.has_app_property("ti.android.runtime"):
@@ -301,18 +307,18 @@ class Android(object):
 		self.build_modules_info(resource_dir, app_bin_dir, include_all_ti_modules=include_all_ti_modules)
 		
 		# Create android source
-		self.render(template_dir, 'AppInfo.java', app_package_dir, self.config['classname'] + 'AppInfo.java',
+		self.render(this_dir, 'AppInfo.java', app_package_dir, self.config['classname'] + 'AppInfo.java',
 			app_properties = self.app_properties, app_info = self.app_info)
 
-		self.render(template_dir, 'AndroidManifest.xml', app_dir, 'AndroidManifest.xml')
-		self.render(template_dir, 'App.java', app_package_dir, self.config['classname'] + 'Application.java',
+		self.render(this_dir, 'AndroidManifest.xml', app_dir, 'AndroidManifest.xml')
+		self.render(this_dir, 'App.java', app_package_dir, self.config['classname'] + 'Application.java',
 			app_modules = self.app_modules, custom_modules = self.custom_modules, runtime = runtime)
-		self.render(template_dir, 'Activity.java', app_package_dir, self.config['classname'] + 'Activity.java')
+		self.render(this_dir, 'Activity.java', app_package_dir, self.config['classname'] + 'Activity.java')
 		self.generate_activities(app_package_dir)
 		self.generate_services(app_package_dir)
-		self.render(template_dir, 'classpath', app_dir, '.classpath')
-		self.render(template_dir, 'project', app_dir, '.project')
-		self.render(template_dir, 'default.properties', app_dir, 'default.properties')
+		self.render(this_dir, 'classpath', app_dir, '.classpath')
+		self.render(this_dir, 'project', app_dir, '.project')
+		self.render(this_dir, 'default.properties', app_dir, 'default.properties')
 		print "[TRACE] Generating app.json"
 		f = None
 		try:
@@ -324,7 +330,7 @@ class Android(object):
 		# Don't override a pre-existing .gitignore in case users have their own preferences
 		# for what should be in it. (LH #2446)
 		if not os.path.exists(os.path.join(app_dir, '.gitignore')):
-			self.render(template_dir, 'gitignore', app_dir, '.gitignore')
+			self.render(this_dir, 'gitignore', app_dir, '.gitignore')
 		else:
 			print "[TRACE] Skipping copying gitignore -> .gitignore because already exists"
 
@@ -334,15 +340,15 @@ class Android(object):
 			shutil.rmtree(android_project_resources)
 		
 		if not os.path.exists(android_project_resources):
-			copy_resources(os.path.join(template_dir,'resources'),android_project_resources)
+			copy_resources(os.path.join(this_dir,'resources'),android_project_resources)
 		
 
 if __name__ == '__main__':
 	# this is for testing only for the time being
-	if len(sys.argv) != 5 or sys.argv[1]=='--help':
+	if len(sys.argv) != 6 or sys.argv[1]=='--help':
 		print "Usage: %s <name> <id> <directory> <sdk>" % os.path.basename(sys.argv[0])
 		sys.exit(1)
 
 	sdk = AndroidSDK(sys.argv[4])
-	android = Android(sys.argv[1], sys.argv[2], sdk, None, 'java')
+	android = Android(sys.argv[1], sys.argv[2], sdk, None, 'java', sys.argv[4])
 	android.create(sys.argv[3])
