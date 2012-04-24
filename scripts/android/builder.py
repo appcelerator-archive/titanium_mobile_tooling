@@ -2063,16 +2063,6 @@ if __name__ == "__main__":
 	if argc < 2:
 		usage()
 
-	titanium_mobile_root = timobile.find_mobilesdk_from_mobiletools(this_dir)
-	if options.mobile_version:
-		(version, version_dir) = timobile.find_mobilesdk_version(titanium_mobile_root, options.mobile_version)
-	else:
-		(version, version_dir) = timobile.find_latest_mobilesdk(titanium_mobile_root)
-	if not version_dir:
-		error("Cannot locate Titanium Mobile SDK directory")
-		sys.exit(1)
-	titanium_mobile_dir = version_dir
-
 	command = sys_argv[1]
 	this_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
 	get_values_from_tiapp = False
@@ -2114,15 +2104,26 @@ if __name__ == "__main__":
 
 	log = TiLogger(os.path.join(os.path.abspath(os.path.expanduser(dequote(project_dir))), 'build.log'))
 	log.debug(" ".join(sys_argv))
+
+	titanium_mobile_root = timobile.find_mobilesdk_from_mobiletools(this_dir)
+	if options.mobile_version:
+		(version, version_dir) = timobile.find_mobilesdk_version(titanium_mobile_root, options.mobile_version)
+	else:
+		(version, version_dir) = timobile.find_latest_mobilesdk(titanium_mobile_root)
+
+	if not version_dir:
+		error("Cannot locate Titanium Mobile SDK directory")
+		sys.exit(1)
+	titanium_mobile_dir = version_dir
 	
-	s = Builder(project_name,sdk_dir,project_dir,this_dir,app_id)
-	s.command = command
+	builder = Builder(project_name,sdk_dir,project_dir,this_dir,app_id)
+	builder.command = command
 
 	try:
 		if command == 'run-emulator':
-			s.run_emulator(avd_id, avd_skin, None, [])
+			builder.run_emulator(avd_id, avd_skin, None, [])
 		elif command == 'run':
-			s.build_and_run(False, avd_id)
+			builder.build_and_run(False, avd_id)
 		elif command == 'emulator':
 			avd_id = dequote(sys_argv[6])
 			if avd_id.isdigit():
@@ -2134,29 +2135,29 @@ if __name__ == "__main__":
 				avd_id = None
 				avd_skin = None
 				add_args = sys_argv[7:]
-			s.run_emulator(avd_id, avd_skin, avd_name, add_args)
+			builder.run_emulator(avd_id, avd_skin, avd_name, add_args)
 		elif command == 'simulator':
 			info("Building %s for Android ... one moment" % project_name)
 			avd_id = dequote(sys_argv[6])
 			debugger_host = None
 			if len(sys_argv) > 8:
 				debugger_host = dequote(sys_argv[8])
-			s.build_and_run(False, avd_id, debugger_host=debugger_host)
+			builder.build_and_run(False, avd_id, debugger_host=debugger_host)
 		elif command == 'install':
 			avd_id = dequote(sys_argv[6])
 			device_args = ['-d']
 			if len(sys_argv) >= 8:
 				device_args = ['-s', sys_argv[7]]
-			s.build_and_run(True, avd_id, device_args=device_args)
+			builder.build_and_run(True, avd_id, device_args=device_args)
 		elif command == 'distribute':
 			key = os.path.abspath(os.path.expanduser(dequote(sys_argv[6])))
 			password = dequote(sys_argv[7])
 			alias = dequote(sys_argv[8])
 			output_dir = dequote(sys_argv[9])
 			avd_id = dequote(sys_argv[10])
-			s.build_and_run(True, avd_id, key, password, alias, output_dir)
+			builder.build_and_run(True, avd_id, key, password, alias, output_dir)
 		elif command == 'build':
-			s.build_and_run(False, 1, build_only=True)
+			builder.build_and_run(False, 1, build_only=True)
 		else:
 			error("Unknown command: %s" % command)
 			usage()
