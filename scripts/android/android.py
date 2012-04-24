@@ -340,15 +340,14 @@ class Android(object):
 			shutil.rmtree(android_project_resources)
 		
 		if not os.path.exists(android_project_resources):
-			copy_resources(os.path.join(this_dir,'resources'),android_project_resources)
-		
+			copy_resources(os.path.join(baseapp_templates, "android","resources"), android_project_resources)
 
 if __name__ == '__main__':
 	# this is for testing only for the time being
 	if len(sys.argv) != 6 or sys.argv[1]=='--help':
-		print "Usage: %s <name> <id> <directory> <sdk>" % os.path.basename(sys.argv[0])
+		print "Usage: %s <name> <id> <directory> <android_sdk> <titanium_sdk>" % os.path.basename(sys.argv[0])
 		sys.exit(1)
 
 	sdk = AndroidSDK(sys.argv[4])
-	android = Android(sys.argv[1], sys.argv[2], sdk, None, 'java', sys.argv[4])
+	android = Android(sys.argv[1], sys.argv[2], sdk, None, 'java', sys.argv[5])
 	android.create(sys.argv[3])
