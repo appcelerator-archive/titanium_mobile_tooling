@@ -372,7 +372,7 @@ class Compiler(object):
 					self.load_metadata(os.path.join(metadata_dir,file))
 
 		if self.deploytype=='simulator' or self.deploytype=='export':
-			shutil.copy(os.path.join(titanium_mobile_dir,'iphone','Classes','defines.h'),os.path.join(self.classes_dir,'defines.h'))
+			shutil.copy(os.path.join(self.ti_sdk_dir,'iphone','Classes','defines.h'),os.path.join(self.classes_dir,'defines.h'))
 		
 		if self.deploytype!='development' or has_modules:
 
@@ -398,7 +398,7 @@ class Compiler(object):
 
 			# deploy any module image files 
 			for module in self.modules:
-				img_dir = os.path.join(titanium_mobile_dir,'iphone','modules',module.lower(),'images')
+				img_dir = os.path.join(self.ti_sdk_dir,'iphone','modules',module.lower(),'images')
 				print "[DEBUG] module image = %s" % img_dir
 				if not os.path.exists(img_dir): continue
 				dest_img_dir = os.path.join(app_dir,'modules',module.lower(),'images')
