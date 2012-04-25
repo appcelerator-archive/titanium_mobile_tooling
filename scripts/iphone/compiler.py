@@ -6,9 +6,14 @@
 
 import os, sys, re, shutil, time, run, sgmllib, codecs, tempfile
 
-template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
-sys.path.append(os.path.abspath(os.path.join(template_dir,'..')))
-sys.path.append(os.path.abspath(os.path.join(template_dir,'..', 'common')))
+this_dir = os.path.dirname(__file__)
+root_scripts_dir = os.path.dirname(this_dir)
+common_scripts_dir = os.path.join(root_scripts_dir, "common")
+module_scripts_dir = os.path.join(root_scripts_dir, "module")
+root_tools_dir = os.path.dirname(root_scripts_dir)
+baseapp_dir = os.path.join(root_tools_dir, "templates", "baseapp", "iphone")
+
+sys.path.append(common_scripts_dir)
 
 from tiapp import *
 import jspacker 
@@ -197,11 +202,12 @@ def softlink_for_simulator(project_dir,app_dir):
 	
 class Compiler(object):
 	
-	def __init__(self,project_dir,appid,name,deploytype):
+	def __init__(self,project_dir,appid,name,deploytype,ti_sdk_dir):
 		self.deploytype = deploytype
 		self.project_dir = project_dir
 		self.project_name = name
 		self.appid = appid
+		self.ti_sdk_dir = ti_sdk_dir
 		
 		if deploytype != 'export-build':
 			self.iphone_dir = os.path.join(project_dir,'build','iphone')
@@ -220,12 +226,14 @@ class Compiler(object):
 		tiapp_xml = os.path.join(self.project_dir,'tiapp.xml')
 		ti = TiAppXML(tiapp_xml)
 		if sdk is None:
-			sdk_version = os.path.basename(os.path.abspath(os.path.join(template_dir,'../')))
+			#real_ti_sdk_dir = self.ti_sdk_dir
+			#if os.path.islink(real_ti_sdk_dir):
+			#	real_ti_sdk_dir = os.path.realpath(real_ti_sdk_dir)
+			#sdk_version = os.path.basename(real_ti_sdk_dir)
+			sdk_version = os.path.basename(self.ti_sdk_dir)
 		else:
 			sdk_version = sdk
 		
-
-
 		if xcode:
 			app_name = os.environ['FULL_PRODUCT_NAME']
 			app_dir = os.path.join(os.environ['TARGET_BUILD_DIR'],os.environ['CONTENTS_FOLDER_PATH'])
@@ -243,7 +251,7 @@ class Compiler(object):
 			print "[INFO] iPhone SDK version: %s" % iphone_version
 	
 		if self.deploytype != 'export-build':
-			main_template_file = os.path.join(template_dir,'main.m')
+			main_template_file = os.path.join(baseapp_dir,'main.m')
 			main_template = codecs.open(main_template_file, encoding='utf-8').read()
 			main_template = main_template.replace('__PROJECT_NAME__',self.project_name)
 			main_template = main_template.replace('__PROJECT_ID__',self.appid)
@@ -284,10 +292,9 @@ class Compiler(object):
 		if self.deploytype != 'export-build':
 			# Have to load the module detection here, in order to
 			# prevent distributing even MORE stuff in export/transport
-			sys.path.append(os.path.join(template_dir,'../module'))
 			from module import ModuleDetector
 			
-			detector = ModuleDetector(self.project_dir)
+			detector = ModuleDetector(self.project_dir, self.ti_sdk_dir)
 			missing_modules, modules = detector.find_app_modules(ti, 'iphone')
 		
 			# we have to copy these even in simulator given the path difference
@@ -365,7 +372,7 @@ class Compiler(object):
 					self.load_metadata(os.path.join(metadata_dir,file))
 
 		if self.deploytype=='simulator' or self.deploytype=='export':
-			shutil.copy(os.path.join(template_dir,'Classes','defines.h'),os.path.join(self.classes_dir,'defines.h'))
+			shutil.copy(os.path.join(titanium_mobile_dir,'iphone','Classes','defines.h'),os.path.join(self.classes_dir,'defines.h'))
 		
 		if self.deploytype!='development' or has_modules:
 
@@ -391,7 +398,7 @@ class Compiler(object):
 
 			# deploy any module image files 
 			for module in self.modules:
-				img_dir = os.path.join(template_dir,'modules',module.lower(),'images')
+				img_dir = os.path.join(titanium_mobile_dir,'iphone','modules',module.lower(),'images')
 				print "[DEBUG] module image = %s" % img_dir
 				if not os.path.exists(img_dir): continue
 				dest_img_dir = os.path.join(app_dir,'modules',module.lower(),'images')
@@ -521,10 +528,8 @@ class Compiler(object):
 		tfilename = tfile.name
 		tfile.write(file_contents)
 		tfile.close()
-		template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
 
-
-		titanium_prep = os.path.abspath(os.path.join(template_dir,'titanium_prep'))
+		titanium_prep = os.path.abspath(os.path.join(this_dir,'titanium_prep'))
 		
 		data = os.popen("\"%s\" \"%s\" \"%s\"" % (titanium_prep, tfilename, self.appid)).read()
 		os.remove(tfilename)

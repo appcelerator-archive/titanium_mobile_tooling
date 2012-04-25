@@ -6,7 +6,7 @@
 # 
 
 import os, sys, uuid, subprocess, shutil, signal, string, traceback, imp, filecmp, inspect
-import platform, time, re, run, glob, codecs, hashlib, datetime, plistlib
+import platform, time, re, run, glob, codecs, hashlib, datetime, plistlib, optparse
 from compiler import Compiler, softlink_for_simulator
 from projector import Projector
 from xml.dom.minidom import parseString
@@ -14,20 +14,25 @@ from xml.etree.ElementTree import ElementTree
 from os.path import join, splitext, split, exists
 from tools import ensure_dev_path
 
-# the template_dir is the path where this file lives on disk
-template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
+this_dir = os.path.dirname(__file__)
+root_scripts_dir = os.path.dirname(this_dir)
+root_tooling_dir = os.path.dirname(root_scripts_dir)
+baseapp_dir = os.path.join(root_tooling_dir, "templates", "baseapp", "iphone")
+module_scripts_dir = os.path.join(root_scripts_dir, "module")
+common_scripts_dir = os.path.join(root_scripts_dir, "common")
 
-# add the parent and the common directory so we can load libraries from those paths too
-sys.path.append(os.path.join(template_dir,'../'))
-sys.path.append(os.path.join(template_dir,'../common'))
-sys.path.append(os.path.join(template_dir, '../module'))
+sys.path.append(module_scripts_dir)
+sys.path.append(common_scripts_dir)
 script_ok = False
 
 from tiapp import *
 from css import csscompiler
-import localecompiler
+import localecompiler, timobile
 from module import ModuleDetector
 from tools import *
+
+sys_argv = [] # replacement for using sys_argv after introducing optparse in this script.
+titanium_mobile_dir = None # set later
 
 ignoreFiles = ['.gitignore', '.cvsignore']
 ignoreDirs = ['.git','.svn', 'CVS']
@@ -451,7 +456,7 @@ FOOTER ="""
 
 def copy_tiapp_properties(project_dir):
 	tiapp = ElementTree()
-	src_root = os.path.dirname(sys.argv[0])
+	src_root = os.path.dirname(sys_argv[0])
 	assets_tiappxml = os.path.join(project_dir,'tiapp.xml')
 	if not os.path.exists(assets_tiappxml):
 		shutil.copy(os.path.join(project_dir, 'tiapp.xml'), assets_tiappxml)
@@ -612,7 +617,7 @@ def main(args):
 		#Ensure the localization files are copied in the application directory
 		out_dir = os.path.join(os.environ['TARGET_BUILD_DIR'],os.environ['CONTENTS_FOLDER_PATH'])
 		localecompiler.LocaleCompiler(name,project_dir,devicefamily,deploytype,out_dir).compile()
-		compiler = Compiler(project_dir,appid,name,deploytype)
+		compiler = Compiler(project_dir,appid,name,deploytype,titanium_mobile_dir)
 		compiler.compileProject(xcode_build,devicefamily,iphone_version)
 		script_ok = True
 		sys.exit(0)
@@ -629,7 +634,7 @@ def main(args):
 			else:
 				iphone_version = dequote(args[3].decode("utf-8"))
 			project_dir = os.path.expanduser(dequote(args[2].decode("utf-8")))
-			iphonesim = os.path.abspath(os.path.join(template_dir,'ios-sim'))
+			iphonesim = os.path.abspath(os.path.join(this_dir,'ios-sim'))
 			iphone_dir = os.path.abspath(os.path.join(project_dir,'build','iphone'))
 			tiapp_xml = os.path.join(project_dir,'tiapp.xml')
 			ti = TiAppXML(tiapp_xml)
@@ -638,7 +643,7 @@ def main(args):
 			command = 'simulator' # switch it so that the rest of the stuff works
 		else:
 			iphone_version = dequote(args[2].decode("utf-8"))
-			iphonesim = os.path.abspath(os.path.join(template_dir,'ios-sim'))
+			iphonesim = os.path.abspath(os.path.join(this_dir,'ios-sim'))
 			project_dir = os.path.expanduser(dequote(args[3].decode("utf-8")))
 			appid = dequote(args[4].decode("utf-8"))
 			name = dequote(args[5].decode("utf-8"))
@@ -736,7 +741,7 @@ def main(args):
 		build_dir = os.path.abspath(os.path.join(build_out_dir,'%s-iphone%s'%(target,ostype)))
 		app_dir = os.path.abspath(os.path.join(build_dir,name+'.app'))
 		binary = os.path.join(app_dir,name)
-		sdk_version = os.path.basename(os.path.abspath(os.path.join(template_dir,'../')))
+		sdk_version = os.path.basename(titanium_mobile_dir)
 		iphone_resources_dir = os.path.join(iphone_dir,'Resources')
 		version_file = os.path.join(iphone_resources_dir,'.version')
 		force_rebuild = read_project_version(project_xcconfig)!=sdk_version or not os.path.exists(version_file)
@@ -765,7 +770,7 @@ def main(args):
 			o.write("Starting build at %s\n\n" % buildtime.strftime("%m/%d/%y %H:%M"))
 			
 			# write out the build versions info
-			versions_txt = read_config(os.path.join(template_dir,'..','version.txt'))
+			versions_txt = read_config(os.path.join(titanium_mobile_dir,'version.txt'))
 			o.write("Build details:\n\n")
 			for key in versions_txt:
 				o.write("   %s=%s\n" % (key,versions_txt[key]))
@@ -778,7 +783,7 @@ def main(args):
 			for arg in args:
 				o.write(unicode("   %s\n" % arg, 'utf-8'))
 			o.write("\n")
-			o.write("Building from: %s\n" % template_dir)
+			o.write("Building from: %s\n" % this_dir)
 			o.write("Platform: %s\n\n" % platform.version())
 
 			# print out path to debug
@@ -789,11 +794,10 @@ def main(args):
 				o.write("Xcode path undetermined\n")
 
 			# find the module directory relative to the root of the SDK	
-			titanium_dir = os.path.abspath(os.path.join(template_dir,'..','..','..','..'))
-			tp_module_dir = os.path.abspath(os.path.join(titanium_dir,'modules','iphone'))
+			titanium_dir = os.path.abspath(os.path.join(titanium_mobile_dir,'..','..','..'))
 			force_destroy_build = command!='simulator'
 
-			detector = ModuleDetector(project_dir)
+			detector = ModuleDetector(project_dir, titanium_mobile_dir)
 			missing_modules, modules = detector.find_app_modules(ti, 'iphone')
 			module_lib_search_path, module_asset_dirs = locate_modules(modules, project_dir, app_dir, log)
 			common_js_modules = []
@@ -858,7 +862,7 @@ def main(args):
 				# during simulator we need to copy in standard built-in module files
 				# since we might not run the compiler on subsequent launches
 				for module_name in ('facebook','ui'):
-					img_dir = os.path.join(template_dir,'modules',module_name,'images')
+					img_dir = os.path.join(titanium_mobile_dir,'iphone','modules',module_name,'images')
 					dest_img_dir = os.path.join(app_dir,'modules',module_name,'images')
 					if not os.path.exists(dest_img_dir):
 						os.makedirs(dest_img_dir)
@@ -889,7 +893,7 @@ def main(args):
 				pp = os.path.expanduser("~/Library/MobileDevice/Provisioning Profiles/%s.mobileprovision" % appuuid)
 				provisioning_profile = read_provisioning_profile(pp,o)
 	
-			create_info_plist(ti, template_dir, project_dir, infoplist)
+			create_info_plist(ti, baseapp_dir, project_dir, infoplist)
 
 			applogo = None
 			clean_build = False
@@ -920,7 +924,7 @@ def main(args):
 					if lib_hash==None:
 						force_rebuild = True
 					else:
-						if template_dir==v and force_rebuild==False:
+						if this_dir==v and force_rebuild==False:
 							force_rebuild = False
 						else:
 							log_id = None
@@ -939,7 +943,7 @@ def main(args):
 			# the current one we're building and if not, we need to force a rebuild since
 			# that means we've copied in a different version of the library and we need
 			# to rebuild clean to avoid linking errors
-			source_lib=os.path.join(template_dir,'libTiCore.a')
+			source_lib=os.path.join(titanium_mobile_dir, 'iphone', 'libTiCore.a')
 			fd = open(source_lib,'rb')
 			m = hashlib.md5()
 			m.update(fd.read(1024)) # just read 1K, it's binary
@@ -957,21 +961,21 @@ def main(args):
 				o.write("Performing full rebuild\n")
 				print "[INFO] Performing full rebuild. This will take a little bit. Hold tight..."
 				sys.stdout.flush()
-				project = Projector(name,sdk_version,template_dir,project_dir,appid)
-				project.create(template_dir,iphone_dir)	
+				project = Projector(name,sdk_version,titanium_mobile_dir,project_dir,appid)
+				project.create(os.path.join(titanium_mobile_dir, "iphone"), iphone_dir)
 				force_xcode = True
 				if os.path.exists(app_dir): shutil.rmtree(app_dir)
 				# we have to re-copy if we have a custom version
-				create_info_plist(ti, template_dir, project_dir, infoplist)
+				create_info_plist(ti, baseapp_dir, project_dir, infoplist)
 				# since compiler will generate the module dependencies, we need to 
 				# attempt to compile to get it correct for the first time.
-				compiler = Compiler(project_dir,appid,name,deploytype)
+				compiler = Compiler(project_dir,appid,name,deploytype,titanium_mobile_dir)
 				compiler.compileProject(xcode_build,devicefamily,iphone_version,True)
 			else:
 				if simulator:
 					softlink_for_simulator(project_dir,app_dir)
 				contents="TI_VERSION=%s\n"% sdk_version
-				contents+="TI_SDK_DIR=%s\n" % template_dir.replace(sdk_version,'$(TI_VERSION)')
+				contents+="TI_SDK_DIR=%s\n" % this_dir.replace(sdk_version,'$(TI_VERSION)')
 				contents+="TI_APPID=%s\n" % appid
 				contents+="OTHER_LDFLAGS[sdk=iphoneos*]=$(inherited) -weak_framework iAd\n"
 				contents+="OTHER_LDFLAGS[sdk=iphonesimulator*]=$(inherited) -weak_framework iAd\n"
@@ -994,7 +998,7 @@ def main(args):
 
 			# check to see if the symlink exists and that it points to the
 			# right version of the library
-			libticore = os.path.join(template_dir,'libTiCore.a')
+			libticore = os.path.join(titanium_mobile_dir,'iphone','libTiCore.a')
 			make_link = True
 			symlink = os.path.join(iphone_dir,'lib','libTiCore.a')
 			if os.path.islink(symlink):
@@ -1019,10 +1023,10 @@ def main(args):
 
 			# if the lib doesn't exist, force a rebuild since it's a new build
 			if not os.path.exists(os.path.join(iphone_dir,'lib','libtiverify.a')):
-				shutil.copy(os.path.join(template_dir,'libtiverify.a'),os.path.join(iphone_dir,'lib','libtiverify.a'))
+				shutil.copy(os.path.join(titanium_mobile_dir,'iphone','libtiverify.a'),os.path.join(iphone_dir,'lib','libtiverify.a'))
 
 			if not os.path.exists(os.path.join(iphone_dir,'lib','libti_ios_debugger.a')):
-				shutil.copy(os.path.join(template_dir,'libti_ios_debugger.a'),os.path.join(iphone_dir,'lib','libti_ios_debugger.a'))
+				shutil.copy(os.path.join(titanium_mobile_dir,'iphone','libti_ios_debugger.a'),os.path.join(iphone_dir,'lib','libti_ios_debugger.a'))
 
 			# compile JSS files
 			cssc = csscompiler.CSSCompiler(os.path.join(project_dir,'Resources'),devicefamily,appid)
@@ -1035,7 +1039,7 @@ def main(args):
 			debug_plist = os.path.join(iphone_dir,'Resources','debugger.plist')
 			
 			# Force an xcodebuild if the debugger.plist has changed
-			force_xcode = write_debugger_plist(debughost, debugport, template_dir, debug_plist)
+			force_xcode = write_debugger_plist(debughost, debugport, baseapp_dir, debug_plist)
 
 			if command not in ['simulator', 'build']:
 				# compile plist into binary format so it's faster to load
@@ -1070,7 +1074,7 @@ def main(args):
 					'titanium_dir':titanium_dir,
 					'appid':appid,
 					'iphone_version':iphone_version,
-					'template_dir':template_dir,
+					'this_dir':this_dir,
 					'project_name':name,
 					'command':command,
 					'deploytype':deploytype,
@@ -1161,8 +1165,8 @@ def main(args):
 					dump_resources_listing(project_dir,o)
 					dump_infoplist(infoplist,o)
 
-				install_logo(ti, applogo, project_dir, template_dir, app_dir)
-				install_defaults(project_dir, template_dir, iphone_resources_dir)
+				install_logo(ti, applogo, project_dir, baseapp_dir, app_dir)
+				install_defaults(project_dir, baseapp_dir, iphone_resources_dir)
 
 				extra_args = None
 
@@ -1305,7 +1309,7 @@ def main(args):
 				if ti.properties['guid']!=log_id or force_xcode:
 					log_id = ti.properties['guid']
 					f = open(version_file,'w+')
-					f.write("%s,%s,%s,%s" % (template_dir,log_id,lib_hash,githash))
+					f.write("%s,%s,%s,%s" % (this_dir,log_id,lib_hash,githash))
 					f.close()
 
 				# both simulator and build require an xcodebuild
@@ -1387,9 +1391,9 @@ def main(args):
 						else:
 							simtype = 'iphone --retina'
 					if devicefamily==None:
-						sim = subprocess.Popen("\"%s\" launch \"%s\" --sdk %s" % (iphonesim,app_dir,iphone_version),shell=True,cwd=template_dir)
+						sim = subprocess.Popen("\"%s\" launch \"%s\" --sdk %s" % (iphonesim,app_dir,iphone_version),shell=True,cwd=this_dir)
 					else:
-						sim = subprocess.Popen("\"%s\" launch \"%s\" --sdk %s --family %s" % (iphonesim,app_dir,iphone_version,simtype),shell=True,cwd=template_dir)
+						sim = subprocess.Popen("\"%s\" launch \"%s\" --sdk %s --family %s" % (iphonesim,app_dir,iphone_version,simtype),shell=True,cwd=this_dir)
 
 					# activate the simulator window
 					command = 'osascript -e "tell application \\\"%s/Platforms/iPhoneSimulator.platform/Developer/Applications/iPhone Simulator.app\\\" to activate"'
@@ -1405,7 +1409,7 @@ def main(args):
 					# starting the logger
 					time.sleep(2)
 
-					logger = os.path.realpath(os.path.join(template_dir,'logger.py'))
+					logger = os.path.realpath(os.path.join(this_dir,'logger.py'))
 
 					# start the logger tail process. this will simply read the output
 					# from the logs and stream them back to Titanium Developer on the console
@@ -1500,7 +1504,7 @@ def main(args):
 
 						# now run our applescript to tell itunes to sync to get
 						# the application on the phone
-						ass = os.path.join(template_dir,'itunes_sync.scpt')
+						ass = os.path.join(this_dir,'itunes_sync.scpt')
 						cmd = "osascript \"%s\"" % ass
 						o.write("+ Executing the command: %s\n" % cmd)
 						os.system(cmd)
@@ -1552,7 +1556,7 @@ def main(args):
 					o.write("Launching xcode: %s\n" % xc_path)
 					os.system('open -a %s' % xc_path)
 					
-					ass = os.path.join(template_dir,'xcode_organizer.scpt')
+					ass = os.path.join(this_dir,'xcode_organizer.scpt')
 					cmd = "osascript \"%s\"" % ass
 					os.system(cmd)
 					
@@ -1578,5 +1582,29 @@ def main(args):
 				o.close()
 
 if __name__ == "__main__":
-	main(sys.argv)
+	parser = optparse.OptionParser()
+	parser.add_option("-t", "--titanium-mobile-directory",
+			dest="mobile_directory",
+			default=None,
+			help="Directory for the version of the Titanium Mobile SDK to compile the project against. If not provided, the latest SDK will be located"
+			)
+	(options, sys_argv) = parser.parse_args()
+	# To mimic sys.argv, put the script name in position 0 of sys_argv
+	sys_argv.insert(0, __file__)
+
+	if options.mobile_directory:
+		titanium_mobile_dir = options.mobile_directory
+	else:
+		titanium_mobile_root = timobile.find_mobilesdk_from_mobiletools(this_dir)
+		if not titanium_mobile_root:
+			print "[ERROR] Cannot locate Titanium Mobile SDK directory"
+			sys.stdout.flush()
+			sys.exit(1)
+		(version, version_dir) = timobile.find_latest_mobilesdk(titanium_mobile_root)
+		if not version_dir:
+			print "[ERROR] Cannot locate Titanium Mobile SDK directory"
+			sys.stdout.flush()
+			sys.exit(1)
+		titanium_mobile_dir = version_dir
+	main(sys_argv)
 	sys.exit(0)

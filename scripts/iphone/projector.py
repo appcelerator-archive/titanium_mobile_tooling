@@ -16,6 +16,8 @@ ignoreDirs = ['.git','.svn', 'CVS']
 symbolicMap = ['Titanium','Appcelerator']
 exclusions = ['TiCore']
 
+this_dir = os.path.dirname(__file__)
+
 class Projector(object):
 	
 	def make_self(self,s):
@@ -143,8 +145,8 @@ class Projector(object):
 		content = content.replace('%s_Prefix.pch'%self.namespace,'%s_Prefix.pch'%self.name)
 		content = content.replace('GCC_PREFIX_HEADER = %s_Prefix.pch;'%self.name,'GCC_PREFIX_HEADER = "%s_Prefix.pch";'%self.name)
 		
-		builder_py = os.path.abspath(os.path.join(self.sdk_root,"builder.py"))
-		pre_compile_script = "\\\"%s\\\" xcode\\nexit $?" % (builder_py)
+		builder_py = os.path.abspath(os.path.join(this_dir,"builder.py"))
+		pre_compile_script = "\\\"%s\\\" xcode -t \\\"%s\\\"\\nexit $?" % (builder_py, self.sdk_root)
 		
 		content = fix_xcode_script(content,"Pre-Compile",pre_compile_script)
 		content = fix_xcode_script(content,"Post-Compile","echo 'post-compile'")

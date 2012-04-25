@@ -1,9 +1,6 @@
 
 import os, sys, codecs, shutil, filecmp
 
-# the template_dir is the path where this file lives on disk
-template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
-
 def ensure_dev_path(debug=True):
 	rc = os.system("xcode-select -print-path >/dev/null 2>/dev/null")
 	if rc == 0 :
