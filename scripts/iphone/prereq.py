@@ -7,8 +7,13 @@
 import os, sys, subprocess, re, types
 import run, tempfile, codecs
 
-template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
-sys.path.append(os.path.abspath(os.path.join(template_dir, "..", "common")))
+this_dir = os.path.dirname(__file__)
+scripts_root_dir = os.path.dirname(this_dir)
+tools_root_dir = os.path.dirname(scripts_root_dir)
+common_dir = os.path.join(scripts_root_dir, "common")
+thirdparty_dir = os.path.join(tools_root_dir, "thirdparty")
+sys.path.append(common_dir)
+sys.path.append(thirdparty_dir)
 
 try:
 	import json
