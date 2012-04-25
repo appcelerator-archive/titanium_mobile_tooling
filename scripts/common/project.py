@@ -80,7 +80,7 @@ def main(args):
 		iphone_resources = os.path.join(resources_dir, 'iphone')
 		if not os.path.exists(iphone_resources): os.makedirs(iphone_resources)
 		iphone_gen = os.path.join(scripts_dir, 'iphone', 'iphone.py')
-		run([sys.executable, iphone_gen, name, appid, directory])
+		run([sys.executable, iphone_gen, name, appid, directory, ti_sdk_dir])
 
 	if android:
 		android_resources = os.path.join(resources_dir, 'android')

@@ -5,16 +5,23 @@
 #
 
 import os,sys,shutil
-template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
-sys.path.append(os.path.join(template_dir,'../'))
+this_dir = os.path.dirname(__file__)
+scripts_dir = os.path.dirname(this_dir)
+tools_dir = os.path.dirname(scripts_dir)
+scripts_common_dir = os.path.join(scripts_dir, "common")
+baseapp_dir = os.path.join(tools_dir, "templates", "baseapp")
+baseapp_iphone_dir = os.path.join(baseapp_dir, "iphone")
+
+sys.path.append(scripts_common_dir)
 from tiapp import *
 from projector import *
 
 class IPhone(object):
 	
-	def __init__(self,name,appid):
+	def __init__(self, name, appid, ti_sdk_dir):
 		self.name = name
 		self.id = appid
+		self.ti_sdk_dir = ti_sdk_dir
 		
 	def create(self,dir,release=False):
 		
@@ -31,16 +38,19 @@ class IPhone(object):
 		if not os.path.exists(iphone_dir):
 			os.makedirs(iphone_dir)
 		
-		version = os.path.basename(os.path.abspath(os.path.join(template_dir,'../')))
-		project = Projector(self.name,version,template_dir,project_dir,self.id)
-		project.create(template_dir,iphone_dir)	
+		real_ti_sdk_dir = self.ti_sdk_dir
+		if os.path.islink(real_ti_sdk_dir):
+			real_ti_sdk_dir = os.path.realpath(real_ti_sdk_dir)
+		version = os.path.basename(real_ti_sdk_dir)
+		project = Projector(self.name, version, os.path.join(self.ti_sdk_dir, "iphone"), project_dir, self.id)
+		project.create(os.path.join(self.ti_sdk_dir, "iphone"), iphone_dir)
 		
 		iphone_project_resources = os.path.join(project_dir,'Resources','iphone')
 		if os.path.exists(iphone_project_resources):
 			shutil.rmtree(iphone_project_resources)
-		shutil.copytree(os.path.join(template_dir,'resources'),iphone_project_resources)
+		shutil.copytree(os.path.join(baseapp_iphone_dir, 'resources'), iphone_project_resources)
 		
-		plist = open(os.path.join(template_dir,'Info.plist'),'r').read()
+		plist = open(os.path.join(baseapp_iphone_dir, 'Info.plist'), 'r').read()
 
 		# Sometimes we actually need app properties!
 		tiapp = TiAppXML(os.path.join(project_dir,'tiapp.xml'))
@@ -51,8 +61,8 @@ class IPhone(object):
 			plist = plist.replace('__URL__',self.id)
 			urlscheme = self.name.replace('.','_').replace(' ','').lower()
 			plist = plist.replace('__URLSCHEME__',urlscheme)
-			if ti.has_app_property('ti.facebook.appid'):
-				fbid = ti.get_app_property('ti.facebook.appid')
+			if tiapp.has_app_property('ti.facebook.appid'):
+				fbid = tiapp.get_app_property('ti.facebook.appid')
 				plist = plist.replace('__ADDITIONAL_URL_SCHEMES__', '<string>fb%s</string>' % fbid)
 			else:
 				plist = plist.replace('__ADDITIONAL_URL_SCHEMES__','')
@@ -72,7 +82,7 @@ class IPhone(object):
 			os.makedirs(iphone_resources_dir)
 
 		# copy main.m to iphone directory		
-		main_template = open(os.path.join(template_dir,'main.m'),'r').read()
+		main_template = open(os.path.join(baseapp_iphone_dir, 'main.m'), 'r').read()
 		
 		# write .gitignore
 		gitignore = open(os.path.join(iphone_dir,'.gitignore'),'w')
@@ -106,14 +116,14 @@ class IPhone(object):
 
 		# copy over the entitlements for distribution
 		if not release:
-			shutil.copy(os.path.join(template_dir,'Entitlements.plist'),iphone_resources_dir)
-					
+			shutil.copy(os.path.join(baseapp_iphone_dir, 'Entitlements.plist'), iphone_resources_dir)
+
 		# copy README to iphone directory		
-		shutil.copy(os.path.join(template_dir,'README'),os.path.join(iphone_dir,'README'))
+		shutil.copy(os.path.join(baseapp_iphone_dir, 'README'), os.path.join(iphone_dir, 'README'))
 
 		# symlink 
-		libticore = os.path.join(template_dir,'libTiCore.a')
-		libtiverify = os.path.join(template_dir,'libtiverify.a')
+		libticore = os.path.join(self.ti_sdk_dir, "iphone", "libTiCore.a")
+		libtiverify = os.path.join(self.ti_sdk_dir, "iphone", "libtiverify.a")
 		cwd = os.getcwd()
 		os.chdir(os.path.join(iphone_dir,'lib'))
 		os.symlink(libticore,"libTiCore.a")
@@ -121,16 +131,12 @@ class IPhone(object):
 		shutil.copy(libtiverify,"libtiverify.a")
 		os.chdir(cwd)
 
-
-
 if __name__ == '__main__':
 	# this is for testing only for the time being
-	if len(sys.argv) != 4 or sys.argv[1]=='--help':
-		print "Usage: %s <name> <id> <directory>" % os.path.basename(sys.argv[0])
+	if len(sys.argv) != 5 or sys.argv[1]=='--help':
+		print "Usage: %s <name> <id> <directory> <titanium_sdk_dir>" % os.path.basename(sys.argv[0])
 		sys.exit(1)
 
 		
-	iphone = IPhone(sys.argv[1],sys.argv[2])
+	iphone = IPhone(sys.argv[1], sys.argv[2], sys.argv[4])
 	iphone.create(sys.argv[3])
-	
-		

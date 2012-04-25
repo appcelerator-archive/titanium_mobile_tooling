@@ -345,7 +345,7 @@ class Android(object):
 if __name__ == '__main__':
 	# this is for testing only for the time being
 	if len(sys.argv) != 6 or sys.argv[1]=='--help':
-		print "Usage: %s <name> <id> <directory> <android_sdk> <titanium_sdk>" % os.path.basename(sys.argv[0])
+		print "Usage: %s <name> <id> <directory> <android_sdk> <titanium_sdk_dir>" % os.path.basename(sys.argv[0])
 		sys.exit(1)
 
 	sdk = AndroidSDK(sys.argv[4])

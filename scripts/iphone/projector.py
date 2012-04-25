@@ -8,9 +8,6 @@ import os, sys, re, shutil, codecs
 from shutil import copyfile
 from os.path import join, splitext, split, exists
 from datetime import date
-
-template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
-
 from tools import *
 	
 fileTargets = ['.c','.cpp','.h','.m','.mm','.pbxproj']
@@ -154,7 +151,6 @@ class Projector(object):
 		return content
 	
 	def create(self,in_dir,out_dir):
-
 		if not os.path.exists(out_dir):
 			os.makedirs(out_dir)
 	
@@ -221,7 +217,6 @@ def main(args):
 	sys.exit(0)
 
 if __name__ == "__main__":
-	#main(sys.argv)
 	main([sys.argv[0],"KitchenSink-iPad","1.3.0","/Library/Application Support/Titanium/mobilesdk/osx/1.3.0/iphone","/Users/jhaynie/tmp/one_three"])
 
 
