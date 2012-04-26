@@ -226,10 +226,6 @@ class Compiler(object):
 		tiapp_xml = os.path.join(self.project_dir,'tiapp.xml')
 		ti = TiAppXML(tiapp_xml)
 		if sdk is None:
-			#real_ti_sdk_dir = self.ti_sdk_dir
-			#if os.path.islink(real_ti_sdk_dir):
-			#	real_ti_sdk_dir = os.path.realpath(real_ti_sdk_dir)
-			#sdk_version = os.path.basename(real_ti_sdk_dir)
 			sdk_version = os.path.basename(self.ti_sdk_dir)
 		else:
 			sdk_version = sdk

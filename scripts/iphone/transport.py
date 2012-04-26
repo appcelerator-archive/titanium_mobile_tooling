@@ -6,12 +6,16 @@
 #
 
 import os, sys, shutil, codecs, glob
-template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
+this_dir = os.path.dirname(__file__)
+scripts_root_dir = os.path.dirname(this_dir)
+scripts_common_dir = os.path.join(scripts_root_dir, "common")
 
-sys.path.append(os.path.abspath(os.path.dirname(template_dir)))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(template_dir),'module')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(template_dir),'common')))
+baseapp_dir = os.path.join(os.path.dirname(scripts_root_dir), 'templates', 'baseapp', 'iphone')
 
+sys.path.append(os.path.abspath(os.path.join(scripts_root_dir,'module')))
+sys.path.append(os.path.abspath(scripts_common_dir))
+
+import timobile
 from tiapp import *
 from module import ModuleDetector
 from pbxproj import PBXProj
@@ -20,9 +24,9 @@ from projector import Projector
 from tools import *
 from compiler import Compiler
 
-def find_sdk(version):
-		sdks = [os.path.join(os.path.expanduser("~/Library/Application Support/Titanium"),"mobilesdk","osx",version),
-				os.path.join("/Library","Application Support","Titanium","mobilesdk","osx",version)]
+def find_sdk_root():
+		sdks = [os.path.join(os.path.expanduser("~/Library/Application Support/Titanium"),"mobilesdk","osx"),
+				os.path.join("/Library","Application Support","Titanium","mobilesdk","osx")]
 		
 		for sdk in sdks:
 			if os.path.exists(sdk):
@@ -30,13 +34,20 @@ def find_sdk(version):
 		print "[ERROR] Is Titanium installed? I can't find it"
 		sys.exit(1)
 
+def find_sdk(sdk_root, version):
+		sdk = os.path.join(sdk_root, version)
+		if not os.path.exists(sdk):
+			print "[ERROR] Is Titanium %s installed?  I can't find it" % version
+			sys.exit(1)
+		return sdk
+
 def info(msg):
 		print "[INFO] %s" % msg
 		sys.stdout.flush()
 
 def main(args):
 		if len(args) < 2:
-				print "Usage: %s <project_directory> [sdk_verison]" % os.path.basename(args[0])
+				print "Usage: %s <project_directory> [sdk_version]" % os.path.basename(args[0])
 				sys.exit(1)
 
 		# What needs to be done in order to perform a "true" export?
@@ -55,12 +66,13 @@ def main(args):
 		build_dir = os.path.join(project_dir,'build','iphone')
 		titanium_local = os.path.join(build_dir,'titanium')
 		
+		sdk_root = find_sdk_root()
 		if len(args) == 3:
 			version = args[2]
-			sdk_dir = find_sdk(version)
+			sdk_dir = find_sdk(sdk_root, version)
 		else:
-			sdk_dir = os.path.abspath(os.path.dirname(template_dir))
-			version = os.path.basename(sdk_dir)			
+			(version, sdk_dir) = timobile.find_latest_mobilesdk(sdk_root)
+		sdk_iphone_dir = os.path.join(sdk_dir, 'iphone')
 
 		tiappxml = os.path.join(project_dir, 'tiapp.xml')
 		tiapp = TiAppXML(tiappxml)
@@ -111,24 +123,24 @@ def main(args):
 		
 		# Generate project stuff from the template
 		info("Generating project from Titanium template...")
-		project = Projector(app_name,version,template_dir,project_dir,app_id)
-		project.create(template_dir,build_dir)			
+		project = Projector(app_name,version,sdk_iphone_dir,project_dir,app_id)
+		project.create(sdk_iphone_dir,build_dir)
 		
 		# Because the debugger.plist is built as part of the required
 		# resources, we need to autogen an empty one
 		debug_plist = os.path.join(resources_dir,'debugger.plist')
-		force_xcode = write_debugger_plist(None, None, template_dir, debug_plist)
+		force_xcode = write_debugger_plist(None, None, baseapp_dir, debug_plist)
 		
 		# Populate Info.plist
 		applogo = None
 		info("Populating Info.plist...")
 		plist_out = os.path.join(build_dir, 'Info.plist')
-		create_info_plist(tiapp, template_dir, project_dir, plist_out)
+		create_info_plist(tiapp, baseapp_dir, project_dir, plist_out)
 		applogo = tiapp.generate_infoplist(plist_out, app_id, 'iphone', project_dir, None)
 		
 		# Run the compiler to autogenerate .m files
 		info("Copying classes, creating generated .m files...")
-		compiler = Compiler(project_dir,app_id,app_name,'export')
+		compiler = Compiler(project_dir,app_id,app_name,'export',sdk_dir)
 		compiler.compileProject(silent=True)
 		
 		#... But we still have to nuke the stuff that gets built that we don't want
@@ -139,11 +151,11 @@ def main(args):
 		
 		# Install applogo/splash/etc.
 		info("Copying icons and splash...")
-		install_logo(tiapp, applogo, project_dir, template_dir, resources_dir)
-		install_defaults(project_dir, template_dir, resources_dir)
+		install_logo(tiapp, applogo, project_dir, baseapp_dir, resources_dir)
+		install_defaults(project_dir, baseapp_dir, resources_dir)
 		
 		# Get Modules
-		detector = ModuleDetector(project_dir)
+		detector = ModuleDetector(project_dir,sdk_dir)
 		missing_modules, modules = detector.find_app_modules(tiapp, 'iphone')
 		
 		if len(missing_modules) != 0:
@@ -191,8 +203,7 @@ def main(args):
 		
 		# Copy libraries
 		info("Copying libraries...")
-		iphone_dir = os.path.join(sdk_dir, 'iphone')
-		for lib in glob.iglob(os.path.join(iphone_dir,'lib*')):
+		for lib in glob.iglob(os.path.join(sdk_iphone_dir,'lib*')):
 			info("\t%s..." % lib)
 			shutil.copy(lib, lib_dir)
 		
@@ -203,17 +214,16 @@ def main(args):
 		
 		# Migrate compile scripts
 		info("Copying custom Titanium compiler scripts...")
-		shutil.copytree(os.path.join(sdk_dir,'common'),titanium_local)
-		shutil.copy(os.path.join(sdk_dir,'tiapp.py'),titanium_local)
+		shutil.copytree(scripts_common_dir,titanium_local)
 		
 		iphone_script_dir = os.path.join(titanium_local,'iphone')
 		os.mkdir(iphone_script_dir)
-		shutil.copy(os.path.join(sdk_dir,'iphone','compiler.py'),iphone_script_dir)
-		shutil.copy(os.path.join(sdk_dir,'iphone','tools.py'),iphone_script_dir)
-		shutil.copy(os.path.join(sdk_dir,'iphone','run.py'),iphone_script_dir)
-		shutil.copy(os.path.join(sdk_dir,'iphone','csspacker.py'),iphone_script_dir)
-		shutil.copy(os.path.join(sdk_dir,'iphone','jspacker.py'),iphone_script_dir)
-		shutil.copy(os.path.join(sdk_dir,'iphone','titanium_prep'),iphone_script_dir)
+		shutil.copy(os.path.join(this_dir,'compiler.py'),iphone_script_dir)
+		shutil.copy(os.path.join(this_dir,'tools.py'),iphone_script_dir)
+		shutil.copy(os.path.join(this_dir,'run.py'),iphone_script_dir)
+		shutil.copy(os.path.join(scripts_common_dir,'csspacker.py'),iphone_script_dir)
+		shutil.copy(os.path.join(this_dir,'jspacker.py'),iphone_script_dir)
+		shutil.copy(os.path.join(this_dir,'titanium_prep'),iphone_script_dir)
 		
 		# Add compilation to the build script in project
 		info("Modifying pre-compile stage...")
