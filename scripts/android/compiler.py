@@ -10,7 +10,6 @@ import os, sys, re, shutil, tempfile, run, codecs, traceback, types
 import jspacker
 from xml.sax.saxutils import escape
 from sgmllib import SGMLParser
-from csspacker import CSSPacker
 from deltafy import Deltafy
 import bindings
 
