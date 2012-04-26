@@ -5,10 +5,13 @@ from stat import *
 from tiapp import *
 from xml.dom.minidom import parseString
 
-# mako and simplejson are in support/common
 this_dir = os.path.dirname(os.path.abspath(__file__))
-common_dir = os.path.join(os.path.dirname(this_dir), "common")
-sys.path.append(common_dir)
+scripts_root_dir = os.path.dirname(this_dir)
+tools_root_dir = os.path.dirname(scripts_root_dir)
+
+sys.path.append(os.path.join(scripts_root_dir, "common"))
+sys.path.append(os.path.join(tools_root_dir, "thirdparty"))
+
 import mako.template
 import simplejson
 from csspacker import CSSPacker
@@ -37,11 +40,12 @@ def compare_versions(version1, version2):
 
 class Compiler(object):
 
-	def __init__(self, project_path, deploytype):
+	def __init__(self, project_path, deploytype, ti_sdk_dir):
 		start_time = time.time()
 		self.minify = deploytype == "production"
 		
 		self.packages = []
+		self.ti_sdk_dir = ti_sdk_dir
 		self.project_dependencies = []   # modules that the project uses
 		self.modules_map = {}            # all modules including deps => individual module deps
 		self.modules_to_cache = []       # all modules to be baked into require.cache()
@@ -49,7 +53,8 @@ class Compiler(object):
 		self.tiplus_modules_to_load = [] # all modules to be required at load time
 		
 		# initialize paths
-		self.sdk_path = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
+		self.baseapp_dir = os.path.join(tools_root_dir, "templates", "baseapp", "mobileweb")
+		self.sdk_path = os.path.join(self.ti_sdk_dir, "mobileweb")
 		self.sdk_src_path = os.path.join(self.sdk_path, 'src')
 		self.themes_path = os.path.join(self.sdk_path, 'themes')
 		self.ti_package_path = os.path.join(self.sdk_path, 'titanium')
@@ -60,7 +65,7 @@ class Compiler(object):
 		self.i18n_path = os.path.join(project_path, 'i18n')
 		self.ti_js_file = os.path.join(self.build_path, 'titanium.js')
 		
-		sdk_version = os.path.basename(os.path.abspath(os.path.join(self.sdk_path, '..')))
+		sdk_version = os.path.basename(self.ti_sdk_dir)
 		print '[INFO] Titanium Mobile Web Compiler v%s' % sdk_version
 		
 		if not os.path.exists(self.project_path):
@@ -333,7 +338,7 @@ class Compiler(object):
 				if self.minify:
 					os.rename(file_path, source)
 					print '[INFO] Minifying include %s' % file_path
-					p = subprocess.Popen('java -Xms256m -Xmx256m -jar "%s" --compilation_level SIMPLE_OPTIMIZATIONS --js "%s" --js_output_file "%s"' % (os.path.join(self.sdk_path, 'closureCompiler', 'compiler.jar'), source, file_path), shell=True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+					p = subprocess.Popen('java -Xms256m -Xmx256m -jar "%s" --compilation_level SIMPLE_OPTIMIZATIONS --js "%s" --js_output_file "%s"' % (os.path.join(this_dir, 'closureCompiler', 'compiler.jar'), source, file_path), shell=True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
 					stdout, stderr = p.communicate()
 					if p.returncode != 0:
 						print '[ERROR] Failed to minify "%s"' % file_path
@@ -409,7 +414,7 @@ class Compiler(object):
 			splash_path = os.path.join(self.project_path, 'Resources', 'mobileweb', 'splash')
 			splash_root_path = os.path.join(self.project_path, 'Resources')
 			if not os.path.exists(splash_path):
-				splash_path = os.path.join(self.sdk_path, 'splash')
+				splash_path = os.path.join(self.baseapp_dir, 'resources', 'splash')
 				splash_root_path = splash_path
 			splash_html_file = os.path.join(splash_path, 'splash.html')
 			splash_css_file = os.path.join(splash_path, 'splash.css')
@@ -479,7 +484,7 @@ class Compiler(object):
 		# minify all javascript, html, and css files
 		if self.minify:
 			# TODO: only minify non-project code (i.e. Titanium and Ti+ modules)
-			subprocess.call('java -Xms256m -Xmx256m -cp "%s%s%s" -Djava.awt.headless=true minify "%s"' % (os.path.join(self.sdk_path, 'minify'), os.pathsep, os.path.join(self.sdk_path, 'closureCompiler', 'compiler.jar'), self.build_path), shell=True)
+			subprocess.call('java -Xms256m -Xmx256m -cp "%s%s%s" -Djava.awt.headless=true minify "%s"' % (os.path.join(this_dir, 'minify'), os.pathsep, os.path.join(this_dir, 'closureCompiler', 'compiler.jar'), self.build_path), shell=True)
 			# elif ext == '.json':
 			#	TODO: minify json
 			# elif ext == '.css':
@@ -644,7 +649,7 @@ class Compiler(object):
 	def build_icons(self, src):
 		print '[INFO] Generating app icons...'
 		favicon = os.path.join(self.build_path, 'favicon.png')
-		s = 'java -Xms256m -Xmx256m -cp "%s%s%s" -Dquiet=true -Djava.awt.headless=true resize "%s"' % (os.path.join(self.sdk_path, 'imageResizer'), os.pathsep, os.path.join(self.sdk_path, 'imageResizer', 'imgscalr-lib-4.2.jar'), src)
+		s = 'java -Xms256m -Xmx256m -cp "%s%s%s" -Dquiet=true -Djava.awt.headless=true resize "%s"' % (os.path.join(this_dir, 'imageResizer'), os.pathsep, os.path.join(this_dir, 'imageResizer', 'imgscalr-lib-4.2.jar'), src)
 		s += ' "%s" %d %d' % (favicon, 16, 16)
 		s += ' "%s" %d %d' % (os.path.join(self.build_path, 'apple-touch-icon-precomposed.png'), 57, 57)
 		s += ' "%s" %d %d' % (os.path.join(self.build_path, 'apple-touch-icon-57x57-precomposed.png'), 57, 57)
