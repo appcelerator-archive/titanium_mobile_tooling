@@ -92,7 +92,7 @@ def main(args):
 		mobileweb_resources = os.path.join(resources_dir, 'mobileweb')
 		if not os.path.exists(mobileweb_resources): os.makedirs(mobileweb_resources)
 		mobileweb_gen = os.path.join(scripts_dir,'mobileweb','mobileweb.py')
-		run([sys.executable, mobileweb_gen, name, appid, directory])
+		run([sys.executable, mobileweb_gen, name, appid, directory, ti_sdk_dir])
 
 	# copy LICENSE and README
 	for file in ['LICENSE', 'README']:

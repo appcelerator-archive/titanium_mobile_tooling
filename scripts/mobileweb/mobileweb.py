@@ -6,14 +6,17 @@
 
 import os,sys,shutil
 
-template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
-sys.path.append(os.path.join(template_dir,'../'))
+this_dir = os.path.dirname(__file__)
+scripts_root_dir = os.path.dirname(this_dir)
+tools_root_dir = os.path.dirname(scripts_root_dir)
+baseapp_dir = os.path.join(tools_root_dir, "templates", "baseapp", "mobileweb")
 
 class MobileWeb(object):
 	
-	def __init__(self,name,appid):
+	def __init__(self,name,appid,ti_sdk_dir):
 		self.name = name
 		self.id = appid
+		self.ti_sdk_dir = ti_sdk_dir
 		
 	def create(self,dir,release=False):
 		
@@ -30,12 +33,10 @@ class MobileWeb(object):
 		if not os.path.exists(mobileweb_dir):
 			os.makedirs(mobileweb_dir)
 		
-		version = os.path.basename(os.path.abspath(os.path.join(template_dir,'../')))
-		
 		mobileweb_project_resources = os.path.join(project_dir,'Resources','mobileweb')
 		if os.path.exists(mobileweb_project_resources):
 			shutil.rmtree(mobileweb_project_resources)
-		shutil.copytree(os.path.join(template_dir,'resources'),mobileweb_project_resources)
+		shutil.copytree(os.path.join(baseapp_dir,'resources'),mobileweb_project_resources)
 		
 		# create the mobileweb resources	
 		mobileweb_resources_dir = os.path.join(mobileweb_dir,'Resources')
@@ -43,10 +44,9 @@ class MobileWeb(object):
 			os.makedirs(mobileweb_resources_dir)
 
 if __name__ == '__main__':
-	# this is for testing only for the time being
-	if len(sys.argv) != 4 or sys.argv[1]=='--help':
-		print "Usage: %s <name> <id> <directory>" % os.path.basename(sys.argv[0])
+	if len(sys.argv) != 5 or sys.argv[1]=='--help':
+		print "Usage: %s <name> <id> <directory> <titanium_sdk_dir>" % os.path.basename(sys.argv[0])
 		sys.exit(1)
 		
-	mw = MobileWeb(sys.argv[1],sys.argv[2])
+	mw = MobileWeb(sys.argv[1],sys.argv[2],sys.argv[4])
 	mw.create(sys.argv[3])
