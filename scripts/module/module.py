@@ -4,7 +4,7 @@
 # Module Project Create Script
 #
 
-import os, sys, shutil, string, uuid, re, zipfile, glob
+import os, sys, shutil, string, uuid, re, zipfile, glob, optparse
 from string import capitalize
 from StringIO import StringIO
 from datetime import date
@@ -14,6 +14,7 @@ common_dir = os.path.join(os.path.dirname(this_dir), "common")
 sys.path.append(common_dir)
 from manifest import Manifest
 from tiapp import TiAppXML
+import timobile
 
 ignoreFiles = ['.gitignore', '.cvsignore', '.DS_Store'];
 ignoreDirs = ['.git','.svn','_svn','CVS'];
@@ -54,12 +55,12 @@ class ModuleProject(object):
 		self.module_id = config['id']
 		self.module_name = self.generate_module_name(self.module_id)
 		self.sdk_version = os.path.basename(self.ti_sdk_dir)
-		self.guid = str(uuid.uuid4())
-		self.project_dir = project_dir
-		self.module_name_camel = camelcase(self.project_name)
 		self.sdk = None
 		if config.has_key('sdk'):
 			self.sdk = config['sdk']
+		self.guid = str(uuid.uuid4())
+		self.project_dir = project_dir
+		self.module_name_camel = camelcase(self.project_name)
 	
 		self.platform_delegate = ModulePlatform.create_platform(platform, project_dir, config, self)
 		platform_dir = os.path.join(this_dir, platform.lower())
@@ -314,8 +315,10 @@ def main(args):
 		'id':'the module id in dotted notation: such as com.yourcompany.foo'
 	}
 	optional_opts = {
-		'sdk':'the platform sdk path'
+		'sdk':'the platform sdk path',
+		'titanium':'the Titanium Mobile sdk path'
 	}
+
 	config = sysargs_to_dict(args,required_opts,optional_opts)
 
 	module_name = config['name']
@@ -325,7 +328,21 @@ def main(args):
 		print "Error. Directory already exists: %s" % project_dir
 		sys.exit(1)
 	
-	module = ModuleProject(config['platform'],project_dir,config)
+	ti_sdk_dir = None
+	if  'titanium' in config:
+		ti_sdk_dir = os.path.expanduser(config['sdk'])
+
+	if ti_sdk_dir is None or not os.path.exists(ti_sdk_dir):
+		sdk_root = timobile.find_mobilesdk_from_mobiletools(this_dir)
+		if not sdk_root:
+			print "[ERROR] Cannot locate Titanium Mobile SDK"
+			sys.exit(1)
+		(version, ti_sdk_dir) = timobile.find_latest_mobilesdk(sdk_root)
+		if not ti_sdk_dir:
+			print "[ERROR] Cannot locate Titanium Mobile SDK"
+			sys.exit(1)
+
+	module = ModuleProject(config['platform'],project_dir,config,ti_sdk_dir)
 
 if __name__ == "__main__":
 	main(sys.argv)

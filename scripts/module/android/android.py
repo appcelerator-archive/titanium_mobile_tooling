@@ -8,15 +8,17 @@ module_android_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_
 module_dir = os.path.dirname(module_android_dir)
 sys.path.append(module_dir)
 
-sdk_dir = os.path.dirname(module_dir)
-sdk_android_dir = os.path.join(sdk_dir, 'android')
-sys.path.append(sdk_android_dir)
+scripts_root_dir = os.path.dirname(module_dir)
+scripts_android_dir = os.path.join(scripts_root_dir, 'android')
+sys.path.append(scripts_android_dir)
 
 import module, androidsdk
 
 class android(module.ModulePlatform):
 	def __init__(self, project_dir, config, module_project):
 		super(android, self).__init__(project_dir, config, module_project)
+		self.sdk_dir = module_project.ti_sdk_dir
+		self.sdk_android_dir = os.path.join(self.sdk_dir, 'android')
 		
 		self.sdk = androidsdk.AndroidSDK(module_project.sdk)
 		if self.sdk.get_platform_dir() == None:
@@ -31,10 +33,10 @@ class android(module.ModulePlatform):
 		classpath_libs = [
 			self.sdk.get_android_jar(),
 			self.sdk.get_maps_jar(),
-			'/'.join([sdk_android_dir, 'titanium.jar']),
-			'/'.join([sdk_android_dir, 'js.jar']),
-			'/'.join([sdk_android_dir, 'kroll-common.jar']),
-			'/'.join([sdk_android_dir, 'kroll-apt.jar'])
+			'/'.join([self.sdk_android_dir, 'titanium.jar']),
+			'/'.join([self.sdk_android_dir, 'js.jar']),
+			'/'.join([self.sdk_android_dir, 'kroll-common.jar']),
+			'/'.join([self.sdk_android_dir, 'kroll-apt.jar'])
 		]
 		self.classpath = ""
 		for lib in classpath_libs:
@@ -53,7 +55,8 @@ class android(module.ModulePlatform):
 		return dir.replace('\\', '\\\\')
 	
 	def replace_tokens(self, string):
-		string = string.replace('__SDK_ANDROID__', self.escape_dir(sdk_android_dir))
+		string = string.replace('__SDK_ANDROID__', self.escape_dir(self.sdk_android_dir))
+		string = string.replace('__SDK_TOOLS__', self.escape_dir(os.path.dirname(scripts_root_dir)))
 		string = string.replace('___CLASSPATH_ENTRIES___', self.classpath)
 		string = string.replace('___ANDROID_PLATFORM___', self.escape_dir(self.sdk.get_platform_dir()))
 		string = string.replace('___GOOGLE_APIS___', self.escape_dir(self.sdk.get_google_apis_dir()))
