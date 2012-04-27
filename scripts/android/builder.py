@@ -2050,10 +2050,10 @@ if __name__ == "__main__":
 		sys.exit(1)
 	
 	parser = optparse.OptionParser()
-	parser.add_option("-t", "--titanium-mobile-version",
-			dest="mobile_version",
+	parser.add_option("-t", "--titanium-mobile-dir",
+			dest="mobile_directory",
 			default=None,
-			help="Version of Titanium Mobile to compile the project against. Must match one of the version directories below the Titanium/mobilesdk/[os] directory. Defaults to latest installed version."
+			help="Directory for the version of the Titanium Mobile SDK to compile the project against. If not provided, the latest SDK will be located"
 			)
 	(options, sys_argv) = parser.parse_args()
 	# To mimic sys.argv, put the script name in position 0 of sys_argv
@@ -2105,16 +2105,19 @@ if __name__ == "__main__":
 	log = TiLogger(os.path.join(os.path.abspath(os.path.expanduser(dequote(project_dir))), 'build.log'))
 	log.debug(" ".join(sys_argv))
 
-	titanium_mobile_root = timobile.find_mobilesdk_from_mobiletools(this_dir)
-	if options.mobile_version:
-		(version, version_dir) = timobile.find_mobilesdk_version(titanium_mobile_root, options.mobile_version)
+	if options.mobile_directory:
+		titanium_mobile_dir = options.mobile_directory
 	else:
-		(version, version_dir) = timobile.find_latest_mobilesdk(titanium_mobile_root)
-
-	if not version_dir:
-		error("Cannot locate Titanium Mobile SDK directory")
-		sys.exit(1)
-	titanium_mobile_dir = version_dir
+		titanium_mobile_root = timobile.find_mobilesdk_from_mobiletools(this_dir)
+		if not titanium_mobile_root:
+			print "[ERROR] Cannot locate Titanium Mobile SDK directory"
+			sys.stdout.flush()
+			sys.exit(1)
+		(version, titanium_mobile_dir) = timobile.find_latest_mobilesdk(titanium_mobile_root)
+		if not titanium_mobile_dir:
+			print "[ERROR] Cannot locate Titanium Mobile SDK directory"
+			sys.stdout.flush()
+			sys.exit(1)
 	
 	builder = Builder(project_name,sdk_dir,project_dir,this_dir,app_id)
 	builder.command = command
