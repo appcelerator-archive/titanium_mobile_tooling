@@ -5,16 +5,20 @@
 #
 import os, sys, subprocess, types, re, uuid, platform
 this_dir = os.path.dirname(__file__)
-scripts_common_dir = os.path.join(this_dir, "scripts", "common")
-scripts_iphone_dir = os.path.join(this_dir, "scripts", "iphone")
-scripts_android_dir = os.path.join(this_dir, "scripts", "android")
-scripts_mobileweb_dir = os.path.join(this_dir, "scripts", "mobileweb")
-scripts_module_dir = os.path.join(this_dir, "scripts", "module")
+scripts_root_dir = os.path.join(this_dir, "scripts")
+scripts_common_dir = os.path.join(scripts_root_dir, "common")
+scripts_plugin_dir = os.path.join(scripts_root_dir, "plugin")
+scripts_iphone_dir = os.path.join(scripts_root_dir, "iphone")
+scripts_android_dir = os.path.join(scripts_root_dir, "android")
+scripts_mobileweb_dir = os.path.join(scripts_root_dir, "mobileweb")
+scripts_module_dir = os.path.join(scripts_root_dir, "module")
+titanium_mobile_dir = None # set in main()
 
 sys.path.append(scripts_common_dir)
 
 from tiapp import *
 from manifest import *
+import timobile
 
 def die(msg):
 	print msg
@@ -108,7 +112,7 @@ def create_iphone_project(project_dir, osname, args):
 	name = get_required(args, 'name')
 	validate_project_name(name)
 	appid = get_required(args, 'id')
-	args = [script, name, appid, project_dir, osname]
+	args = [script, name, appid, project_dir, titanium_mobile_dir, osname]
 	retcode = fork(args, True)
 	if retcode == 0:
 		print "Created %s application project" % osname
@@ -135,7 +139,7 @@ def create_android_project(project_dir, osname, args):
 	validate_project_name(name)
 	appid = get_required(args, 'id')
 	android_sdk = get_android_sdk(args)
-	args = [script, name, appid, project_dir, osname, android_sdk]
+	args = [script, name, appid, project_dir, titanium_mobile_dir, osname, android_sdk]
 	retcode = fork(args, True)
 	if retcode == 0:
 		print "Created %s application project" % osname
@@ -164,7 +168,7 @@ def create_mobileweb_project(project_dir, osname, args):
 	name = get_required(args, 'name')
 	validate_project_name(name)
 	appid = get_required(args, 'id')
-	args = [script, name, appid, project_dir, osname]
+	args = [script, name, appid, project_dir, titanium_mobile_dir, osname]
 	retcode = fork(args, True)
 	if retcode == 0:
 		print "Created %s application project" % osname
@@ -207,7 +211,7 @@ def create_module_project(osname, project_dir, args):
 
 def create_plugin_project(project_dir, args):
 	#todo
-	script = os.path.join(this_dir, 'plugin', 'plugin.py')
+	script = os.path.join(scripts_plugin_dir, 'plugin.py')
 	project_id = get_required(args, 'id')
 	args = [script,'--id', project_id, '--directory', project_dir]
 	
@@ -313,10 +317,10 @@ def dyn_run(args,project_cb,module_cb):
 			else:
 				platform = get_required(args,'platform')
 		if atype == 'project':
-			script = os.path.join(this_dir,platform,'builder.py')
+			script = os.path.join(scripts_root_dir,platform,'builder.py')
 			cmdline = project_cb(args,script,project_dir,platform)
 		elif atype == 'module':
-			script = os.path.join(this_dir,'module','builder.py')
+			script = os.path.join(scripts_module_dir,'builder.py')
 			cmdline = module_cb(args,script,project_dir,platform)
 		else:
 			die("Unknown type: %s" % atype)
@@ -351,6 +355,9 @@ def clean_platform(project_dir,platform):
 def clean(args):
 	project_dir = get_required(args,'dir')
 	tiapp_xml = os.path.join(project_dir,'tiapp.xml')
+	if not os.path.exists(tiapp_xml):
+		help(['clean'])
+		sys.exit(1)
 	touch_tiapp_xml(tiapp_xml)
 	
 	platform = get_optional(args,'platform')
@@ -394,9 +401,16 @@ def package(args):
 
 def emulator_args(args, script, project_dir, platform):
 	if platform == 'android':
-		return [script, 'run-emulator', platform, project_dir]
+		android_sdk = get_android_sdk(args)
+		if not android_sdk:
+			print '[ERROR] Cannot find android sdk'
+			help(['emulator'])
+			sys.exit(1)
+		return [script, 'run-emulator', project_dir, android_sdk]
 
 def emulator(args):
+	if 'platform' not in args:
+		args['platform'] = 'android'
 	dyn_run(args, emulator_args, emulator_args)
 
 def docgen_args(args, script, project_dir, platform):
@@ -411,7 +425,7 @@ def docgen(args):
 def fastdev(args):
 	# This is Android only for now
 	project_dir = check_valid_project(args['dir'], os.getcwd())
-	fastdev_script = os.path.join(this_dir, 'android', 'fastdev.py')
+	fastdev_script = os.path.join(scripts_android_dir, 'fastdev.py')
 	fastdev_args = [sys.executable, fastdev_script]
 	fastdev_args.extend(sys.argv[2:])
 	fastdev_args.extend([project_dir])
@@ -456,35 +470,44 @@ def help(args=[],suppress_banner=False):
 			print "  --name=n            	project name"
 			print "  --id=i              	project id (ie com.companyName.project"
 			print "  --ver=i             	platform version"
-			print "  --android=sdk_folder	For android module - the Android SDK folder"
+			print "  --android_sdk_folder	For android module - the Android SDK folder"
+			print "  --titanium_mobile_dir  Path to Titanium Mobile (including version)"
 		elif cmd == 'build':
 			print "Usage: %s build [--dir=d]" % os.path.basename(sys.argv[0])
 			print 
-			print "  --dir=d    project directory"
+			print "  --dir=d                project directory"
+			print "  --titanium_mobile_dir  Path to Titanium Mobile (including version)"
 		elif cmd == 'run':
 			print "Usage: %s run [--dir=d]" % os.path.basename(sys.argv[0])
 			print 
-			print "  --dir=d    project directory"
+			print "  --dir=d                project directory"
+			print "  --titanium_mobile_dir  Path to Titanium Mobile (including version)"
 		elif cmd == 'clean':
-			print "Usage: %s clean [--platform=p1,p2]" % os.path.basename(sys.argv[0])
+			print "Usage: %s clean [--platform=p1,p2] [--dir=d]" % os.path.basename(sys.argv[0])
 			print
 			print "  --platform=p1,p2    	platform: iphone, ipad, android, mobileweb, etc. If omitted, all platforms will be cleaned."
+			print "  --dir=d             	project directory (default=current directory)"
 		elif cmd == 'install':
 			print "Usage: %s install [--dir=d]" % os.path.basename(sys.argv[0])
 			print 
-			print "  --dir=d    project directory"
+			print "  --dir=d                project directory"
+			print "  --titanium_mobile_dir  Path to Titanium Mobile (including version)"
 		elif cmd == 'package':
 			print "Usage: %s package [--dir=d]" % os.path.basename(sys.argv[0])
 			print 
-			print "  --dir=d    project directory"
+			print "  --dir=d                project directory"
+			print "  --titanium_mobile_dir  Path to Titanium Mobile (including version)"
 		elif cmd == 'docgen':
 			print "Usage: %s docgen [--dir=d] [--dest-dir=d]" % os.path.basename(sys.argv[0])
 			print
 			print "  --dir=d         project directory"
 			print "  --dest-dir=d    destination directory"
+		elif cmd == 'emulator':
+			print "Usage: %s emulator [--dir=d]" % os.path.basename(sys.argv[0])
+			print
+			print "  --dir=d                project directory"
 		elif cmd == 'fastdev':
-			android_dir = os.path.join(this_dir, 'android')
-			sys.path.append(android_dir)
+			sys.path.append(scripts_android_dir)
 			import fastdev
 			fastdev.get_optparser().print_usage()
 		else:
@@ -511,6 +534,7 @@ def slurp_args(args):
 	return config
 				
 def main(args):
+	global titanium_mobile_dir
 	if len(args)==1:
 		help()
 	
@@ -527,6 +551,14 @@ def main(args):
 	else:
 		# convert args to a hash
 		config = slurp_args(a)
+		if config.has_key('titanium_mobile_dir'):
+			titanium_mobile_dir = os.path.expanduser(config['titanium_mobile_dir'])
+		else:
+			timob_root = timobile.find_mobilesdk_from_mobiletools(this_dir)
+			if not timob_root:
+				print "[ERROR] Cannot locate Titanium Mobile directory"
+				sys.exit(1)
+			(version, titanium_mobile_dir) = timobile.find_latest_mobilesdk(timob_root)
 		
 		# some config can be checked before hand
 		if not config.has_key('dir') or config['dir']==None:

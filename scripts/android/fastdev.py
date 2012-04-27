@@ -19,10 +19,14 @@ else:
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=logging.INFO)
 
-support_android_dir = os.path.dirname(os.path.abspath(__file__))
-support_dir = os.path.dirname(support_android_dir)
-sys.path.append(support_dir)
-sys.path.append(os.path.join(support_dir, "common"))
+scripts_android_dir = os.path.dirname(__file__)
+scripts_root_dir = os.path.dirname(scripts_android_dir)
+scripts_common_dir = os.path.join(scripts_root_dir, "common")
+tools_root_dir = os.path.dirname(scripts_root_dir)
+thirdparty_dir = os.path.join(tools_root_dir, "thirdparty")
+
+sys.path.append(scripts_common_dir)
+sys.path.append(thirdparty_dir)
 
 import tiapp, simplejson
 
