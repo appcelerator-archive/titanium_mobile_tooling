@@ -4,12 +4,12 @@
 # module builder script
 #
 import os, sys, shutil, tempfile, subprocess, platform
-template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
-support_dir = os.path.join(template_dir, 'support')
-sdk_dir = os.path.dirname(template_dir)
-common_dir = os.path.join(sdk_dir, "common")
-android_support_dir = os.path.join(sdk_dir, 'android')
-sys.path.extend([sdk_dir, support_dir, android_support_dir, common_dir])
+this_dir = os.path.dirname(__file__)
+scripts_root_dir = os.path.dirname(this_dir)
+scripts_common_dir = os.path.join(scripts_root_dir, "common")
+scripts_android_dir = os.path.join(scripts_root_dir, "android")
+thirdparty_dir = os.path.join(os.path.dirname(scripts_root_dir), "thirdparty")
+sys.path.extend([scripts_common_dir, scripts_android_dir, thirdparty_dir])
 
 from androidsdk import AndroidSDK
 from manifest import Manifest
@@ -97,7 +97,7 @@ def stage(platform, project_dir, manifest, callback):
 		name = manifest.name
 		moduleid = manifest.moduleid
 		version = manifest.version
-		script = os.path.join(template_dir, '..', 'project.py')
+		script = os.path.join(scripts_common_dir, 'project.py')
 		
 		# create a temporary proj
 		create_project_args = [script, name, moduleid, dir, platform]
@@ -195,7 +195,7 @@ def main(args):
 
 	if command == 'run':
 		def run_callback(gen_project_dir):
-			script = os.path.abspath(os.path.join(template_dir, '..', platform,'builder.py'))
+			script = os.path.abspath(os.path.join(scripts_root_dir, platform,'builder.py'))
 			script_args = [script, 'run', gen_project_dir]
 			if is_android(platform):
 				script_args.append(android_sdk.get_android_sdk())
@@ -220,7 +220,7 @@ def main(args):
 
 			tiapp_xml = os.path.join(gen_project_dir, 'tiapp.xml')
 
-			script = os.path.abspath(os.path.join(template_dir, '..', platform, 'builder.py'))
+			script = os.path.abspath(os.path.join(scripts_root_dir, platform, 'builder.py'))
 			script_args = [script, "install", manifest.name, android_sdk.get_android_sdk(), gen_project_dir, manifest.moduleid, "Necessary argument, but unused."]
 
 			rc = run_python(script_args)
@@ -237,7 +237,7 @@ def main(args):
 	elif command == 'run-emulator':
 		if is_android(platform):
 			def run_emulator_callback(gen_project_dir):
-				script = os.path.abspath(os.path.join(template_dir, '..', platform, 'builder.py'))
+				script = os.path.abspath(os.path.join(scripts_root_dir, platform, 'builder.py'))
 				run_python([script, 'run-emulator', gen_project_dir, android_sdk.get_android_sdk()])
 			
 			stage(platform, project_dir, manifest, run_emulator_callback)
