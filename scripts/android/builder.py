@@ -1698,7 +1698,7 @@ class Builder(object):
 				'this_dir':this_dir,
 				'project_name':self.name,
 				'command':self.command,
-				'build_dir':s.project_dir,
+				'build_dir':self.project_dir,
 				'app_name':self.name,
 				'android_builder':self,
 				'deploy_type':deploy_type,
