@@ -414,10 +414,9 @@ def emulator(args):
 	dyn_run(args, emulator_args, emulator_args)
 
 def docgen_args(args, script, project_dir, platform):
-	if platform == 'android':
-		default_dest_dir = os.path.join(project_dir, 'build', 'docs')
-		dest_dir = get_optional(args, 'dest-dir', default_dest_dir)
-		return [script, 'docgen', platform, project_dir, dest_dir]
+	default_dest_dir = os.path.join(project_dir, 'build', 'docs')
+	dest_dir = get_optional(args, 'dest-dir', default_dest_dir)
+	return [script, 'docgen', platform, project_dir, dest_dir]
 
 def docgen(args):
 	dyn_run(args, docgen_args, docgen_args)

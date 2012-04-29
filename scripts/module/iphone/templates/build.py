@@ -7,7 +7,7 @@ import os, subprocess, sys, glob, string
 import zipfile
 from datetime import date
 
-cwd = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
+cwd = os.path.dirname(__file__)
 os.chdir(cwd)
 required_module_keys = ['name','version','moduleid','description','copyright','license','copyright','platform','minsdk']
 module_defaults = {
@@ -17,10 +17,6 @@ module_defaults = {
 	'copyright' : 'Copyright (c) %s by Your Company' % str(date.today().year),
 }
 module_license_default = "TODO: place your license here and we'll include it in the module distribution"
-
-def find_sdk(config):
-	sdk = config['TITANIUM_SDK']
-	return os.path.expandvars(os.path.expanduser(sdk))
 
 def replace_vars(config,token):
 	idx = token.find('$(')
@@ -209,9 +205,9 @@ if __name__ == '__main__':
 	validate_license()
 	config = read_ti_xcconfig()
 	
-	sdk = find_sdk(config)
-	sys.path.insert(0,os.path.join(sdk,'iphone'))
-	sys.path.append(os.path.join(sdk, "common"))
+	ti_tools_dir = config['TITANIUM_TOOLS']
+	sys.path.insert(0, os.path.join(ti_tools_dir, 'scripts', 'iphone'))
+	sys.path.append(os.path.join(ti_tools_dir, "scripts", "common"))
 	
 	compile_js(manifest,config)
 	build_module(manifest,config)

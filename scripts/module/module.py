@@ -52,6 +52,8 @@ class ModuleProject(object):
 		self.project_name = config['name'].lower()
 		self.platform = platform
 		self.ti_sdk_dir = ti_sdk_dir
+		self.ti_tools_dir = os.path.dirname(os.path.dirname(this_dir))
+		self.ti_tools_version = os.path.basename(self.ti_tools_dir)
 		self.module_id = config['id']
 		self.module_name = self.generate_module_name(self.module_id)
 		self.sdk_version = os.path.basename(self.ti_sdk_dir)
@@ -84,8 +86,10 @@ class ModuleProject(object):
 		string = string.replace('__MODULE_ID__',self.module_id)
 		string = string.replace('__PROJECT_SHORT_NAME__',self.project_short_name)
 		string = string.replace('__VERSION__',self.sdk_version)
+		string = string.replace('__TOOLS_VERSION__', self.ti_tools_version)
 		string = string.replace('__SDK__',self.ti_sdk_dir)
 		string = string.replace('__SDK_ROOT__',os.path.split(self.ti_sdk_dir)[0].replace(os.path.expanduser('~'),'~',1))
+		string = string.replace('__TOOLS_ROOT__',os.path.expanduser(os.path.dirname(self.ti_tools_dir)))
 		string = string.replace('__PLATFORM__',self.platform)
 		string = string.replace('__GUID__',self.guid)
 		string = string.replace('__YEAR__', str(date.today().year))
