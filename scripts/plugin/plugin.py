@@ -13,21 +13,22 @@ this_dir = os.path.dirname(__file__)
 sys.path.append(os.path.join(os.path.dirname(this_dir), "common"))
 import timobile
 
+templates_dir = os.path.join(os.path.dirname(os.path.dirname(this_dir)), "templates", "plugin")
+
 ignoreFiles = ['.gitignore', '.cvsignore', '.DS_Store'];
 ignoreDirs = ['.git','.svn','_svn','CVS'];
 nonFilterFiles = ['.png','.gif','.jpg','.zip','.a','.o', '.jar']
 
 class PluginProject(object):
-	def __init__(self, project_dir, config,ti_sdk_dir):
+	def __init__(self, project_dir, config, ti_sdk_dir):
 		self.project_dir = project_dir
 		self.ti_sdk_dir = ti_sdk_dir
 		self.config = config
 		self.project_id = config['id']
 		self.guid = str(uuid.uuid4())
 		self.sdk_version = os.path.basename(self.ti_sdk_dir)
-		all_templates_dir = os.path.join(this_dir,'all')
-		if os.path.exists(all_templates_dir):
-			self.copy_template_files(all_templates_dir)
+		if os.path.exists(templates_dir):
+			self.copy_template_files(templates_dir)
 
 	def replace_tokens(self, string):
 		string = string.replace('__PROJECT_ID__',self.project_id)
