@@ -7,34 +7,34 @@
 import os, sys, shutil, string, uuid, re, zipfile, glob
 from string import capitalize
 from StringIO import StringIO
+from datetime import date
 
-# template_dir simply points to the directory that this file lives in on disk
-template_dir = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
-sdk_dir = os.path.dirname(template_dir)
-# add the SDK directory (the parent directory of this file) to the load path so we 
-# can resovle libraries from this path
-sys.path.append(sdk_dir)
+this_dir = os.path.dirname(__file__)
+sys.path.append(os.path.join(os.path.dirname(this_dir), "common"))
+import timobile
 
 ignoreFiles = ['.gitignore', '.cvsignore', '.DS_Store'];
 ignoreDirs = ['.git','.svn','_svn','CVS'];
 nonFilterFiles = ['.png','.gif','.jpg','.zip','.a','.o', '.jar']
 
 class PluginProject(object):
-	def __init__(self, project_dir, config):
+	def __init__(self, project_dir, config,ti_sdk_dir):
 		self.project_dir = project_dir
+		self.ti_sdk_dir = ti_sdk_dir
 		self.config = config
 		self.project_id = config['id']
 		self.guid = str(uuid.uuid4())
-		self.sdk_version = os.path.basename(sdk_dir)
-		all_templates_dir = os.path.join(template_dir,'all')
+		self.sdk_version = os.path.basename(self.ti_sdk_dir)
+		all_templates_dir = os.path.join(this_dir,'all')
 		if os.path.exists(all_templates_dir):
 			self.copy_template_files(all_templates_dir)
 
 	def replace_tokens(self, string):
 		string = string.replace('__PROJECT_ID__',self.project_id)
 		string = string.replace('__VERSION__',self.sdk_version)
-		string = string.replace('__SDK__',sdk_dir)
+		string = string.replace('__SDK__',self.ti_sdk_dir)
 		string = string.replace('__GUID__',self.guid)
+		string = string.replace('__YEAR__',str(date.today().year))
 		return string
 
 	def get_file_dest(self, template_dir, from_path):
@@ -114,7 +114,11 @@ def main(args):
 		'directory':'the directory to create the plugin',
 		'id':'the module id in dotted notation: such as com.yourcompany.foo'
 	}
-	config = sysargs_to_dict(args,required_opts)
+	optional_opts = {
+		'sdk':'the platform sdk path',
+		'titanium':'the Titanium Mobile sdk path'
+	}
+	config = sysargs_to_dict(args,required_opts,optional_opts)
 	plugin_name = config['id']
 	project_dir = os.path.join(os.path.abspath(os.path.expanduser(config['directory'])),plugin_name)
 
@@ -122,7 +126,21 @@ def main(args):
 		print "Error. Directory already exists: %s" % project_dir
 		sys.exit(1)
 
-	plugin = PluginProject(project_dir,config)
+	ti_sdk_dir = None
+	if  'titanium' in config:
+		ti_sdk_dir = os.path.expanduser(config['sdk'])
+
+	if ti_sdk_dir is None or not os.path.exists(ti_sdk_dir):
+		sdk_root = timobile.find_mobilesdk_from_mobiletools(this_dir)
+		if not sdk_root:
+			print "[ERROR] Cannot locate Titanium Mobile SDK"
+			sys.exit(1)
+		(version, ti_sdk_dir) = timobile.find_latest_mobilesdk(sdk_root)
+		if not ti_sdk_dir:
+			print "[ERROR] Cannot locate Titanium Mobile SDK"
+			sys.exit(1)
+
+	plugin = PluginProject(project_dir,config,ti_sdk_dir)
 
 if __name__ == "__main__":
 	main(sys.argv)

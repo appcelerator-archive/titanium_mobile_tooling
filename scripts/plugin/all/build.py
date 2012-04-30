@@ -6,7 +6,7 @@
 import os, sys, glob, string
 import zipfile
 
-cwd = os.path.abspath(os.path.dirname(sys._getframe(0).f_code.co_filename))
+cwd = os.path.dirname(__file__)
 required_plugin_keys = ['version','pluginid','description','copyright','license','minsdk']
 plugin_defaults = {
 	'description':'My plugin',
