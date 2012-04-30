@@ -13,7 +13,7 @@ VERSION = "2.1.0"
 
 OS_NAMES = {"Windows":"win32", "Linux":"linux", "Darwin":"osx"}
 IGNORE_DIRS = (".git", ".DS_Store", "dist")
-IGNORE_FILES = (".gitignore",)
+IGNORE_FILES = (".gitignore","titanium.py") # we package titanium.py specially.
 IGNORE_EXTENSIONS = (".pyc", ".swp")
 
 import os, platform, zipfile, optparse, subprocess
@@ -43,6 +43,9 @@ def package(desktop_os):
 	version_txt = "version=%s\ntimestamp=%s\ngithash=%s\n" % (
 		VERSION, datetime.now().strftime("%m/%d/%y %H:%M"), get_git_hash())
 	zf.writestr(os.path.join(arc_root, "version.txt").replace(os.sep, "/"), version_txt)
+
+	# We put titanium.py specially in root of the package.
+	zf.write(os.path.join(this_dir, "scripts", "common", "titanium.py"), os.path.join(arc_root, "titanium.py").replace(os.sep, "/"))
 
 	# Beyond that, we just package everything up as-is.
 	for root, dirs, files in os.walk(this_dir):
