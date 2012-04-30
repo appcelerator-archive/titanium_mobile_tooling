@@ -90,6 +90,7 @@ class ModuleProject(object):
 		string = string.replace('__SDK__',self.ti_sdk_dir)
 		string = string.replace('__SDK_ROOT__',os.path.split(self.ti_sdk_dir)[0].replace(os.path.expanduser('~'),'~',1))
 		string = string.replace('__TOOLS_ROOT__',os.path.expanduser(os.path.dirname(self.ti_tools_dir)))
+		string = string.replace('__TOOLS__',os.path.expanduser(self.ti_tools_dir))
 		string = string.replace('__PLATFORM__',self.platform)
 		string = string.replace('__GUID__',self.guid)
 		string = string.replace('__YEAR__', str(date.today().year))

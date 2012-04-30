@@ -5,11 +5,12 @@
 
 version = '__VERSION__'
 sdk_path = r'__SDK__'
+tools_path = r'__TOOLS__'
 
 import os, sys, time, datetime, string, math, zipfile, codecs, re, shutil, subprocess, base64
 from datetime import date
 from xml.dom.minidom import parseString
-sys.path.append(os.path.join(sdk_path, "common"))
+sys.path.append(os.path.join(tools_path, "thirdparty"))
 import simplejson
 
 try:
@@ -323,7 +324,7 @@ class Compiler(object):
 					if self.minify:
 						os.rename(file_path, source)
 						print '[INFO] Minifying include %s' % file_path
-						p = subprocess.Popen('java -Xms256m -Xmx256m -jar "%s" --compilation_level SIMPLE_OPTIMIZATIONS --js "%s" --js_output_file "%s"' % (os.path.join(sdk_path, 'mobileweb', 'closureCompiler', 'compiler.jar'), source, file_path), shell=True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+						p = subprocess.Popen('java -Xms256m -Xmx256m -jar "%s" --compilation_level SIMPLE_OPTIMIZATIONS --js "%s" --js_output_file "%s"' % (os.path.join(tools_path, 'scripts', 'mobileweb', 'closureCompiler', 'compiler.jar'), source, file_path), shell=True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
 						stdout, stderr = p.communicate()
 						if p.returncode != 0:
 							print '[ERROR] Failed to minify "%s"' % file_path
@@ -369,9 +370,9 @@ class Compiler(object):
 	
 	def minify_js(self):
 		subprocess.call('java -Xms256m -Xmx256m -cp "%s%s%s" -Djava.awt.headless=true minify "%s"' % (
-			os.path.join(sdk_path, 'mobileweb', 'minify'),
+			os.path.join(tools_path, 'scripts', 'mobileweb', 'minify'),
 			os.pathsep,
-			os.path.join(sdk_path, 'mobileweb', 'closureCompiler', 'compiler.jar'),
+			os.path.join(tools_path, 'scripts', 'mobileweb', 'closureCompiler', 'compiler.jar'),
 			self.build_path
 		), shell=True)
 	
