@@ -10,8 +10,10 @@ from StringIO import StringIO
 from datetime import date
 
 this_dir = os.path.dirname(__file__)
-common_dir = os.path.join(os.path.dirname(this_dir), "common")
-sys.path.append(common_dir)
+scripts_common_dir = os.path.join(os.path.dirname(this_dir), "common")
+templates_dir = os.path.join(os.path.dirname(os.path.dirname(this_dir)), "templates", "module")
+templates_common_dir = os.path.join(templates_dir, "common")
+sys.path.append(scripts_common_dir)
 from manifest import Manifest
 from tiapp import TiAppXML
 import timobile
@@ -65,15 +67,13 @@ class ModuleProject(object):
 		self.module_name_camel = camelcase(self.project_name)
 	
 		self.platform_delegate = ModulePlatform.create_platform(platform, project_dir, config, self)
-		platform_dir = os.path.join(this_dir, platform.lower())
 		
-		all_templates_dir = os.path.join(this_dir,'all')
-		if os.path.exists(all_templates_dir):
-			self.copy_template_files(all_templates_dir)
+		if os.path.exists(templates_common_dir):
+			self.copy_template_files(templates_common_dir)
 
-		templates_dir = os.path.join(platform_dir,'templates')
-		if os.path.exists(templates_dir):
-			self.copy_template_files(templates_dir)
+		platform_templates_dir = os.path.join(templates_dir, platform)
+		if os.path.exists(platform_templates_dir):
+			self.copy_template_files(platform_templates_dir)
 
 		self.generate_gitignore()
 		self.platform_delegate.finished()
