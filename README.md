@@ -1,6 +1,5 @@
-+=======================================================================================+
-+                         Appcelerator Titanium Mobile                                  +
-+=======================================================================================+
+Appcelerator Titanium Mobile
+=============================
 
 For details on Titanium, please see <http://www.appcelerator.com>.
 
